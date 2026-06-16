@@ -109,7 +109,7 @@ Pushes new SSH keys to running VMs without redeployment.
 | `vmss.bicep` | VMSS deployment template |
 | `network/` | Network infrastructure (NSG, VNet, proximity group) |
 | `security/` | SSH key manifest, public keys, and Key Vault template |
-| `node/` | Node-side scripts (deploy, cluster, storage-conf, benchmark) |
+| `node/` | Node-side scripts (deploy, cluster, system, benchmark) |
 | `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |

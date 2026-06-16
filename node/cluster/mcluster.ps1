@@ -62,7 +62,7 @@ if (-not $IFACE) { $IFACE = "eth1" }
 if (-not $BASE_PORT) { $BASE_PORT = 7000 } else { $BASE_PORT = [int]$BASE_PORT }
 if (-not $DEPLOY_USER) { $DEPLOY_USER = "guser" }
 
-$ConfDir = "$HOME/AzureBench/node/storage-conf"
+$ConfDir = "$HOME/AzureBench/node/system"
 $RepoDir = "$HOME/AzureBench"
 $ClusterMode = if ($NoCluster) { "false" } else { "true" }
 
