@@ -1,0 +1,8 @@
+# Generated files
+vmss-parameters.json
+
+# Benchmark results
+configs/results/
+
+# SSH public keys
+security/*.pub

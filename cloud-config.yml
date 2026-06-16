@@ -1,0 +1,27 @@
+#cloud-config
+write_files:
+  - path: /etc/profile.d/aliases.sh
+    permissions: '0644'
+    content: |
+      alias ll='ls -la'
+
+runcmd:
+  # Install all build dependencies
+  - sudo apt-get update
+  - sudo apt-get install -y git vim tar gzip wget curl grep sed make cmake gcc g++ binutils pkg-config net-tools autoconf automake libtool libssl-dev zlib1g-dev uuid-dev libicu-dev libxml2-dev libjemalloc-dev liburing-dev libaio-dev libevent-dev
+  - sudo apt-get install -y linux-headers-$(uname -r)
+  - sudo apt-get install -y tcpdump
+  - sudo apt-get install -y pciutils
+  - sudo apt-get install -y jq
+  - sudo apt-get install -y iperf3
+
+  # ethtool -l eth1
+  - sudo apt-get install -y ethtool
+
+  # Install PowerShell
+  - sudo snap install powershell --classic
+
+  # Clone configs repo, install scripts, and execute deploy commands from manifest
+  - sudo -u guser git clone https://github.com/vazois/configs.git /home/guser/configs
+  - chmod +x /home/guser/configs/update.sh
+  - sudo bash /home/guser/configs/update.sh --run

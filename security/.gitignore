@@ -1,0 +1,5 @@
+# Ignore copied public keys (sourced from manifest)
+*.pub
+
+# Keep the vmss inter-node key tracked
+!id_ed25519_vmss.pub
