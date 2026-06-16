@@ -315,29 +315,29 @@ switch ($Action) {
         # Build authorized_keys content
         $authorizedKeys = $pubKeys -join "`n"
 
-        # Get VMSS instance IDs
-        $instances = az vmss list-instances `
+        # Get VMSS instance IDs and computer names
+        $instancesJson = az vmss list-instances `
             --resource-group $rg `
             --name $VmssName `
-            --query '[].instanceId' -o tsv
+            --query '[].{id:instanceId, name:osProfile.computerName}' -o json 2>$null | ConvertFrom-Json
 
-        if (-not $instances) {
+        if (-not $instancesJson -or $instancesJson.Count -eq 0) {
             Write-Error "No VMSS instances found for $VmssName in $rg."
             exit 1
         }
 
-        $instanceList = $instances -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-        Write-Host "  Found $($instanceList.Count) instance(s)"
+        Write-Host "  Found $($instancesJson.Count) instance(s)"
 
-        # Push keys via run-command
-        $script = "echo '$authorizedKeys' > /home/$SshUser/.ssh/authorized_keys && chmod 600 /home/$SshUser/.ssh/authorized_keys && chown $SshUser`:$SshUser /home/$SshUser/.ssh/authorized_keys"
+        # Push keys via run-command (use base64 to avoid quoting issues)
+        $authorizedKeysB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($authorizedKeys))
+        $script = "echo '$authorizedKeysB64' | base64 -d > /home/$SshUser/.ssh/authorized_keys && chmod 600 /home/$SshUser/.ssh/authorized_keys && chown $SshUser`:$SshUser /home/$SshUser/.ssh/authorized_keys"
 
-        foreach ($instanceId in $instanceList) {
-            Write-Host "  Updating instance $instanceId..." -NoNewline
+        foreach ($instance in $instancesJson) {
+            Write-Host "  Updating $($instance.name) (instance $($instance.id))..." -NoNewline
             az vmss run-command invoke `
                 --resource-group $rg `
                 --name $VmssName `
-                --instance-id $instanceId `
+                --instance-id $instance.id `
                 --command-id RunShellScript `
                 --scripts $script `
                 --output none 2>$null

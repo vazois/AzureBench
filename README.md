@@ -66,12 +66,22 @@ Vault names are auto-generated as `kv-{yyyyMMddHHmmss}` to avoid global name col
 
 ### 4. Deploy VMSS
 
+Two VMSS groups are required — one for **servers** (running the storage system under test) and one for **clients** (running the benchmark workload).
+
 ```powershell
+# Server VMSS
 az deployment group create `
   --resource-group vazois-garnet `
   --template-file vmss.bicep `
   --parameters @vmss-parameters.json `
-  --parameters vmssName=<name> instanceCount=<n> vmSKU=<sku>
+  --parameters vmssName=server instanceCount=<n> vmSKU=<sku>
+
+# Client VMSS (for running benchmarks)
+az deployment group create `
+  --resource-group vazois-garnet `
+  --template-file vmss.bicep `
+  --parameters @vmss-parameters.json `
+  --parameters vmssName=client instanceCount=<n> vmSKU=<sku>
 ```
 
 VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-installed.
