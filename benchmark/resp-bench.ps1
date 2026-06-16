@@ -61,17 +61,31 @@ Get-Content $ConfigFile | ForEach-Object {
 }
 
 # --- Resolve parameters ---
-$sshKeyRaw    = $config["SshKey"]       ?? "$env:USERPROFILE\.ssh\id_ed121824_notebook"
-# Support array syntax: [key1, key2, ...] — use first that exists
-if ($sshKeyRaw -match '^\[(.+)\]$') {
-    $candidates = $Matches[1] -split ',\s*'
+# --- Resolve SSH keys from security/manifest.json ---
+$manifestPath = Join-Path (Split-Path $ConfigFile) "..\security\manifest.json"
+if (Test-Path $manifestPath) {
+    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    $manifestBasePath = [Environment]::ExpandEnvironmentVariables($manifest.basePath)
+    $candidates = $manifest.userKeys | ForEach-Object { Join-Path $manifestBasePath $_ }
     $sshKey = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $sshKey) {
-        Write-Error "None of the SSH keys exist: $($candidates -join ', ')"
+        Write-Error "None of the SSH keys from manifest exist: $($candidates -join ', ')"
         exit 1
     }
+} elseif ($config["SshKey"]) {
+    $sshKeyRaw = $config["SshKey"]
+    if ($sshKeyRaw -match '^\[(.+)\]$') {
+        $candidates = $Matches[1] -split ',\s*'
+        $sshKey = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if (-not $sshKey) {
+            Write-Error "None of the SSH keys exist: $($candidates -join ', ')"
+            exit 1
+        }
+    } else {
+        $sshKey = $sshKeyRaw
+    }
 } else {
-    $sshKey = $sshKeyRaw
+    $sshKey = "$env:USERPROFILE\.ssh\id_ed25519"
 }
 $sshUser      = $config["SshUser"]      ?? "guser"
 $sshHostBase  = $config["SshHost"]      ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
