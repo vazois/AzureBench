@@ -11,7 +11,7 @@ runcmd:
   - sudo tdnf install -y kernel-headers glibc-devel gcc-c++
   - sudo tdnf install -y tcpdump pciutils jq iperf3 ethtool powershell
 
-  # Clone configs repo, install scripts, and execute deploy commands from manifest
-  - sudo -u guser git clone https://github.com/vazois/configs.git /home/guser/configs
-  - chmod +x /home/guser/configs/update.sh
-  - sudo bash /home/guser/configs/update.sh --run
+  # Clone AzureBench repo, install scripts, and execute deploy commands from manifest
+  - sudo -u guser git clone https://github.com/vazois/AzureBench.git /home/guser/AzureBench
+  - chmod +x /home/guser/AzureBench/configs/update.sh
+  - sudo bash /home/guser/AzureBench/configs/update.sh --run

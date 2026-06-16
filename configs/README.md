@@ -26,7 +26,7 @@ Templates use these placeholders (resolved at runtime by `setup-config.sh`):
 
 ```bash
 # Clone to ~/node-conf/ on each VM (done via cloud-init or broadcast)
-git clone https://github.com/vazois/configs.git ~/node-conf
+git clone https://github.com/vazois/AzureBench.git ~/node-conf
 
 # Generate 16-node valkey cluster configs (in-memory)
 setup-config.sh valkey cache 16
