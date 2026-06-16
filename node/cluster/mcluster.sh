@@ -22,14 +22,15 @@
 
 source /opt/deploy-actions/config.env
 ACTION="${1:?Usage: mcluster [start|stop|update] <system> <template> <nodes> [--cluster|--no-cluster]}"
-CONF_DIR="$HOME/configs"
+CONF_DIR="$HOME/AzureBench/node/storage-conf"
+REPO_DIR="$HOME/AzureBench"
 CLUSTER_MODE="true"
 TOTAL_CORES=$(nproc)
 
 pull_configs() {
-  if [ -d "$CONF_DIR/.git" ]; then
+  if [ -d "$REPO_DIR/.git" ]; then
     echo "Pulling latest configs..."
-    git -C "$CONF_DIR" pull --ff-only -q 2>/dev/null || echo "  WARNING: git pull failed, using cached configs"
+    git -C "$REPO_DIR" pull --ff-only -q 2>/dev/null || echo "  WARNING: git pull failed, using cached configs"
   fi
 }
 

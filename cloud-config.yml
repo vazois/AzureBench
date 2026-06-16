@@ -23,5 +23,4 @@ runcmd:
 
   # Clone AzureBench repo, install scripts, and execute deploy commands from manifest
   - sudo -u guser git clone https://github.com/vazois/AzureBench.git /home/guser/AzureBench
-  - chmod +x /home/guser/AzureBench/configs/update.sh
-  - sudo bash /home/guser/AzureBench/configs/update.sh --run
+  - sudo pwsh /home/guser/AzureBench/node/update.ps1 -Run

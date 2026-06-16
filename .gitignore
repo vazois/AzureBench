@@ -2,7 +2,7 @@
 vmss-parameters.json
 
 # Benchmark results
-configs/results/
+benchmark/results/
 
 # SSH public keys
 security/*.pub

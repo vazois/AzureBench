@@ -184,7 +184,7 @@ var storageProfileConfig = {
 /////////////// LINUX CONFIG OPTIONS ///////////////////
 var isAzureLinux = linuxImage.publisher == 'microsoftcblmariner'
 
-// Load cloud-config templates (no script injection needed — both use git clone + update.sh)
+// Load cloud-config templates (no script injection needed — both use git clone + update.ps1)
 var cloudInitAzureLinuxFinal = loadTextContent('cloud-config-azurelinux.yml')
 var cloudInitUbuntuFinal = loadTextContent('cloud-config.yml')
 

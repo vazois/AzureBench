@@ -312,25 +312,25 @@ function Confirm-Endpoints {
 function Invoke-ParallelMcluster {
     param([string[]]$Ips, [string]$SshUser, [string]$MclusterArgs, [string]$OwnIp, [int]$BasePort, [int]$ICount)
     Write-Host ""
-    Write-Host "Running mcluster.ps1 on $($Ips.Count) VMs..." -ForegroundColor Yellow
-    Write-Host "  Command: mcluster.ps1 $MclusterArgs" -ForegroundColor DarkGray
+    Write-Host "Running mcluster on $($Ips.Count) VMs..." -ForegroundColor Yellow
+    Write-Host "  Command: mcluster $MclusterArgs" -ForegroundColor DarkGray
 
     $remoteLog = "/tmp/mcluster-deploy.log"
 
     foreach ($ip in $Ips) {
         if ($ip -eq $OwnIp) {
             Write-Host "  [$ip] (local) ..." -NoNewline
-            Invoke-Expression "mcluster.ps1 $MclusterArgs" 2>&1 | Out-Null
+            Invoke-Expression "mcluster $MclusterArgs" 2>&1 | Out-Null
             Write-Host " dispatched" -ForegroundColor Green
         } else {
             Write-Host "  [$ip] (ssh) ..." -NoNewline
-            InvokeSsh -Ip $ip -SshUser $SshUser -Command "mcluster.ps1 $MclusterArgs" -Background | Out-Null
+            InvokeSsh -Ip $ip -SshUser $SshUser -Command "mcluster $MclusterArgs" -Background | Out-Null
             Write-Host " dispatched" -ForegroundColor Green
         }
     }
 
     Write-Host ""
-    Write-Host "  Summary: dispatched 'mcluster.ps1 $MclusterArgs' to $($Ips.Count) VM(s)" -ForegroundColor Cyan
+    Write-Host "  Summary: dispatched 'mcluster $MclusterArgs' to $($Ips.Count) VM(s)" -ForegroundColor Cyan
 
     # Skip port probing if ICount is 0 (e.g., stop action)
     if ($ICount -le 0) { return @() }

@@ -25,8 +25,8 @@ Templates use these placeholders (resolved at runtime by `setup-config.sh`):
 ## Usage
 
 ```bash
-# Clone to ~/node-conf/ on each VM (done via cloud-init or broadcast)
-git clone https://github.com/vazois/AzureBench.git ~/node-conf
+# Templates are in ~/AzureBench/node/storage-conf/ on each VM
+# (cloned via cloud-init or broadcast)
 
 # Generate 16-node valkey cluster configs (in-memory)
 setup-config.sh valkey cache 16
@@ -38,13 +38,13 @@ setup-config.sh garnet disk 16
 mcluster start 16 valkey
 
 # Update configs on all nodes
-broadcast --copy ~/node-conf/valkey-cache.conf ~/node-conf/valkey-cache.conf
+broadcast --copy ~/AzureBench/node/storage-conf/valkey-cache.conf ~/AzureBench/node/storage-conf/valkey-cache.conf
 broadcast "setup-config.sh valkey cache 16 && mcluster start 16 valkey"
 ```
 
 ## Deployment
 
-Templates are deployed to `~/node-conf/` on each VM either:
+Templates are deployed to `~/AzureBench/node/storage-conf/` on each VM either:
 1. Via cloud-init at VMSS creation
 2. Via `git pull` for updates
 3. Via `broadcast --copy` for ad-hoc pushes

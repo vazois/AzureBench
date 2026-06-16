@@ -43,7 +43,7 @@ VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-instal
 ### 5. Run Benchmarks
 
 ```powershell
-.\configs\resp-bench.ps1
+.\benchmark\resp-bench.ps1
 ```
 
 Launches benchmark workloads across VMSS nodes using SSH, aggregates results.
@@ -63,7 +63,7 @@ Pushes new SSH keys to running VMs without redeployment.
 | `vmss.bicep` | VMSS deployment template |
 | `network/` | Network infrastructure (NSG, VNet, proximity group) |
 | `security/` | SSH key manifest and public keys |
-| `configs/` | Benchmark scripts and configuration |
+| `node/` | Node-side scripts (deploy, cluster, storage-conf, benchmark) |
 | `deploy-keys.ps1` | Key sync and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |

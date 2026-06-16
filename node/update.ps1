@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Pull latest configs repo, copy scripts, and optionally run deploy commands.
+    Pull latest repo, copy scripts, and optionally run deploy commands.
     Reads manifest.json for source→destination mapping and runcmd definitions.
 
 .EXAMPLE
@@ -20,7 +20,7 @@ param(
 if ($Help -or (-not $Pull -and -not $Copy -and -not $Run -and -not $RunOnly)) {
     Write-Host "Usage: update.ps1 [-Pull] [-Copy] [-Run] [-RunOnly]"
     Write-Host ""
-    Write-Host "Pull latest configs repo, copy scripts, and optionally run deploy commands."
+    Write-Host "Pull latest repo, copy scripts, and optionally run deploy commands."
     Write-Host "Reads manifest.json for source->destination mapping and runcmd definitions."
     Write-Host ""
     Write-Host "Options:"

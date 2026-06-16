@@ -12,7 +12,7 @@ SYSTEM="${1:?Usage: setup-config.sh <system> <profile> [num-nodes]}"
 PROFILE="${2:?Usage: setup-config.sh <system> <profile> [num-nodes]}"
 NUM_NODES="${3:-1}"
 BASE_PORT=7000
-CONF_DIR="$HOME/node-conf"
+CONF_DIR="$HOME/AzureBench/node/storage-conf"
 TEMPLATE="$CONF_DIR/${SYSTEM}-${PROFILE}.conf"
 
 if [ ! -f "$TEMPLATE" ]; then
