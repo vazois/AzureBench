@@ -20,20 +20,48 @@ Automated deployment of benchmarking environments on Azure using VMSS (Virtual M
 
 Creates NSGs, VNet (with two subnets), and a proximity placement group. Auto-generates `vmss-parameters.json` with resource IDs.
 
-### 3. Configure SSH Keys
+### 3. Configure SSH Keys and Key Vault
 
-Edit `security/manifest.json` to declare your SSH key names and base path. Then run:
+Edit `security/manifest.json` to declare your SSH key names and base path:
 
-```powershell
-.\deploy-keys.ps1
+```json
+{
+    "basePath": "%USERPROFILE%\\.ssh",
+    "userKeys": ["id_ed12182024_desktop", "id_ed121824_notebook"],
+    "vmKeys": "id_ed25519_vmss"
+}
 ```
 
-This copies public keys locally, populates `vmss-parameters.json` with their contents, deploys a Key Vault, and uploads the VMSS inter-node private key.
+- **`userKeys`** — your personal keys for SSH access into VMs (public keys deployed to `authorized_keys`)
+- **`vmKeys`** — the VMSS inter-node key (public key deployed to VMs, private key uploaded to Key Vault for VM-to-VM SSH)
 
-To deploy only the Key Vault and upload the VMSS key separately:
+#### Actions
+
+| Action | Command | Description |
+|--------|---------|-------------|
+| `deploy` (default) | `.\deploy-keys.ps1` | Copies `.pub` files to `security/`, updates `vmss-parameters.json`, deploys Key Vault, and uploads VMSS private key |
+| `vault` | `.\deploy-keys.ps1 -Action vault` | Only deploys Key Vault and uploads the VMSS private key. Prompts to reuse an existing vault or create a new one |
+| `sync` | `.\deploy-keys.ps1 -Action sync -rg <rg>` | Discovers existing Key Vault in the resource group and updates `manifest.json` + `vmss-parameters.json` |
+| `update` | `.\deploy-keys.ps1 -Action update -VmssName <name>` | Pushes public keys to running VMSS instances via `az vmss run-command` (no redeployment) |
+
+#### Key Vault Naming
+
+Vault names are auto-generated as `kv-{yyyyMMddHHmmss}` to avoid global name collisions. The name is saved to `manifest.json` after creation. If a soft-deleted vault with the same name exists, the script will attempt to purge it or generate a new name.
+
+#### Examples
 
 ```powershell
-.\deploy-keys.ps1 -Action vault
+# Full deploy (keys + Key Vault) to default resource group
+.\deploy-keys.ps1
+
+# Deploy Key Vault only to a specific resource group
+.\deploy-keys.ps1 -Action vault -rg garnet-bench
+
+# Discover existing Key Vault and update parameters
+.\deploy-keys.ps1 -Action sync -rg garnet-bench
+
+# Push keys to live VMSS without redeployment
+.\deploy-keys.ps1 -Action update -VmssName myVmss -rg garnet-bench
 ```
 
 ### 4. Deploy VMSS
