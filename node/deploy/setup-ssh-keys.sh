@@ -1,6 +1,11 @@
 #!/bin/bash
 source /opt/deploy-actions/config.env
 
+# Override VAULT_NAME from cloud-init injected file (set at deploy time by Bicep)
+if [ -f /opt/deploy-actions/keyvault.env ]; then
+  source /opt/deploy-actions/keyvault.env
+fi
+
 # Fetch VMSS SSH private key from Azure Key Vault using managed identity.
 # The public key is already in authorized_keys via osProfile.ssh.publicKeys.
 # This script installs the private key so VMs can SSH to each other.

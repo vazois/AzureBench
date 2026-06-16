@@ -1,6 +1,7 @@
 param location string
 param keyVaultName string
 param tenantId string = subscription().tenantId
+param deployerPrincipalId string
 
 var tagsProfile = {
   Environment: '/NonProd'
@@ -17,9 +18,18 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       family: 'A'
       name: 'standard'
     }
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
+    accessPolicies: [
+      {
+        tenantId: tenantId
+        objectId: deployerPrincipalId
+        permissions: {
+          secrets: ['get', 'set', 'list', 'delete']
+        }
+      }
+    ]
   }
 }
 

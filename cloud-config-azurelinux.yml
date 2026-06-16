@@ -4,6 +4,10 @@ write_files:
     permissions: '0644'
     content: |
       alias ll='ls -la'
+  - path: /opt/deploy-actions/keyvault.env
+    permissions: '0644'
+    content: |
+      VAULT_NAME=__KEYVAULT_NAME__
 
 runcmd:
   # Install all build dependencies

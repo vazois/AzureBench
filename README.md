@@ -9,6 +9,8 @@ Automated deployment of benchmarking environments on Azure using VMSS (Virtual M
 - Azure CLI (`az`) logged in
 - PowerShell 7+
 - Resource group created (default: `vazois-garnet`)
+- SSH key pair for **intra-VMSS** access (VM-to-VM communication within a scale set, e.g., `id_ed25519_vmss`)
+- SSH key pair(s) for **inter-VMSS** access (your desktop/notebook connecting to VMs, e.g., `id_ed12182024_desktop`)
 
 ### 2. Deploy Network Resources
 
@@ -26,7 +28,13 @@ Edit `security/manifest.json` to declare your SSH key names and base path. Then 
 .\deploy-keys.ps1
 ```
 
-This copies public keys locally and populates `vmss-parameters.json` with their contents.
+This copies public keys locally, populates `vmss-parameters.json` with their contents, deploys a Key Vault, and uploads the VMSS inter-node private key.
+
+To deploy only the Key Vault and upload the VMSS key separately:
+
+```powershell
+.\deploy-keys.ps1 -Action vault
+```
 
 ### 4. Deploy VMSS
 
@@ -62,8 +70,8 @@ Pushes new SSH keys to running VMs without redeployment.
 |------|---------|
 | `vmss.bicep` | VMSS deployment template |
 | `network/` | Network infrastructure (NSG, VNet, proximity group) |
-| `security/` | SSH key manifest and public keys |
+| `security/` | SSH key manifest, public keys, and Key Vault template |
 | `node/` | Node-side scripts (deploy, cluster, storage-conf, benchmark) |
-| `deploy-keys.ps1` | Key sync and live update |
+| `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |

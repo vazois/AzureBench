@@ -184,9 +184,11 @@ var storageProfileConfig = {
 /////////////// LINUX CONFIG OPTIONS ///////////////////
 var isAzureLinux = linuxImage.publisher == 'microsoftcblmariner'
 
-// Load cloud-config templates (no script injection needed — both use git clone + update.ps1)
-var cloudInitAzureLinuxFinal = loadTextContent('cloud-config-azurelinux.yml')
-var cloudInitUbuntuFinal = loadTextContent('cloud-config.yml')
+// Load cloud-config templates and inject keyVaultName
+var cloudInitAzureLinuxRaw = loadTextContent('cloud-config-azurelinux.yml')
+var cloudInitUbuntuRaw = loadTextContent('cloud-config.yml')
+var cloudInitAzureLinuxFinal = replace(cloudInitAzureLinuxRaw, '__KEYVAULT_NAME__', keyVaultName)
+var cloudInitUbuntuFinal = replace(cloudInitUbuntuRaw, '__KEYVAULT_NAME__', keyVaultName)
 
 var cloudInitUbuntu = base64(cloudInitUbuntuFinal)
 var cloudInitAzureLinux = base64(cloudInitAzureLinuxFinal)

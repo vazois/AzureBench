@@ -1,7 +1,9 @@
 {
-    "basePath": "%USERPROFILE%\\.ssh",
-    "keys": [
-        "id_ed12182024_desktop",
-        "id_ed121824_notebook"
-    ]
+  "basePath": "%USERPROFILE%\\.ssh",
+  "userKeys": [
+    "id_ed12182024_desktop",
+    "id_ed121824_notebook"
+  ],
+  "vmKeys": "id_ed25519_vmss",
+  "keyVaultName": "kv-20260616155639"
 }
