@@ -86,7 +86,24 @@ function Deploy-Vault {
         exit 1
     }
 
-    # Check if Key Vault already exists
+    # Check for existing Key Vaults in the resource group
+    $existingVaults = az keyvault list --resource-group $rg --query "[].name" -o tsv 2>$null
+    $vaultList = @()
+    if ($existingVaults) {
+        $vaultList = $existingVaults -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    }
+
+    if ($vaultList.Count -gt 0) {
+        Write-Host "  Existing vault(s) in '$rg':" -ForegroundColor Yellow
+        $vaultList | ForEach-Object { Write-Host "    - $_" }
+        $choice = Read-Host "Use existing vault? Enter name (or press Enter to create new '$kvName')"
+        if ($choice) {
+            $kvName = $choice
+            Write-Host "  Using existing vault: $kvName"
+        }
+    }
+
+    # Check if chosen vault already exists
     $kvExists = az keyvault show --name $kvName --resource-group $rg --query name -o tsv 2>$null
     if ($kvExists) {
         Write-Host "  Key Vault '$kvName' already exists."
@@ -125,7 +142,7 @@ function Deploy-Vault {
             exit 1
         }
         Write-Host "  Key Vault '$kvName' created." -ForegroundColor Green
-        Write-Host "  Waiting for RBAC propagation..." -ForegroundColor DarkGray
+        Write-Host "  Waiting for access policy propagation..." -ForegroundColor DarkGray
         Start-Sleep -Seconds 15
     }
 
