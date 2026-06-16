@@ -88,11 +88,61 @@ VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-instal
 
 ### 5. Run Benchmarks
 
-```powershell
-.\benchmark\resp-bench.ps1
+The `benchmark/` folder contains the benchmark launcher and its configuration:
+
+| File | Purpose |
+|------|---------|
+| `benchmark/resp-bench.ps1` | Launches [Resp.benchmark](https://github.com/microsoft/garnet) across client VMs via SSH |
+| `benchmark/bench.conf` | Key-value config for SSH targets, benchmark parameters, and workload tuning |
+| `benchmark/results/` | Auto-generated per-run output (git-ignored) |
+
+#### Configuration (`bench.conf`)
+
+```ini
+# SSH connection
+SshUser=guser
+SshHost=[vm0.myclient.southcentralus.cloudapp.azure.com]
+SshCount=12          # number of VMs (vm0..vm11)
+Multiplier=1         # instances per VM
+
+# Benchmark parameters
+Host=10.5.1.4        # target server IP
+Port=7000
+Threads=16
+Runtime=60
+ClusterBench=true
+
+# Optional
+# DbSize=1000000
+# KeyLength=16
+# ValueLength=128
+# BatchSize=100
+# ExtraArgs=--db-size 1000000
 ```
 
-Launches benchmark workloads across VMSS nodes using SSH, aggregates results.
+SSH keys are resolved automatically from `security/manifest.json` (falls back to `~/.ssh/id_ed25519`).
+
+#### Running
+
+```powershell
+.\benchmark\resp-bench.ps1                          # uses default bench.conf
+.\benchmark\resp-bench.ps1 -ConfigFile .\custom.conf # custom config
+```
+
+The script:
+1. Opens Windows Terminal tabs/panes — one per SSH session (2 panes per tab)
+2. Each pane SSHs into a client VM and runs `Resp.benchmark` with the configured parameters
+3. Output is tee'd to timestamped log files under `benchmark/results/<yyyyMMdd-HHmmss>/`
+4. Polls log files until all instances report `Total throughput:` (or a timeout of `runtime + 120s`)
+5. Aggregates results across all instances, printing per-instance and total throughput:
+
+```
+=== Aggregate Results (20260616-164500) ===
+  vm0-myclient-0   1,234.56 Kops/sec |  0.450 GB/s data |  0.520 GB/s wire
+  vm1-myclient-1     987.65 Kops/sec |  0.380 GB/s data |  0.440 GB/s wire
+  ----------------------------------------------------------------------
+  TOTAL              2,222.21 Kops/sec |  0.830 GB/s data |  0.960 GB/s wire
+```
 
 ### 6. Update Keys on Live VMSS (Optional)
 
@@ -110,6 +160,7 @@ Pushes new SSH keys to running VMs without redeployment.
 | `network/` | Network infrastructure (NSG, VNet, proximity group) |
 | `security/` | SSH key manifest, public keys, and Key Vault template |
 | `node/` | Node-side scripts (deploy, cluster, system, benchmark) |
+| `benchmark/` | Benchmark launcher, config, and results |
 | `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |
