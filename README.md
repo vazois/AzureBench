@@ -121,8 +121,8 @@ The `benchmark/` folder contains the benchmark launcher and its configuration:
 # SSH connection
 SshUser=guser
 SshHost=[vm0.myclient.southcentralus.cloudapp.azure.com]
-SshCount=12          # number of VMs (vm0..vm11)
-Multiplier=1         # instances per VM
+InstancePerHost=12   # number of VM instances (vm0..vm11)
+Multiplier=1         # benchmark instances per VM
 
 # Benchmark parameters
 Host=10.5.1.4        # target server IP

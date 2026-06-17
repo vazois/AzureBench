@@ -25,22 +25,22 @@ if ($Help) {
     Write-Host "SSH sessions to run Resp.benchmark in background windows."
     Write-Host ""
     Write-Host "Config file keys:"
-    Write-Host "  SshKey       - Path to SSH private key"
-    Write-Host "  SshUser      - SSH username"
-    Write-Host "  SshHost      - Base remote hostname (vm prefix before index)"
-    Write-Host "  SshCount     - Number of client VMs (generates vm0, vm1, ...)"
-    Write-Host "  Multiplier   - Instances per host (default: 1)"
-    Write-Host "  Host         - Benchmark target host (--host)"
-    Write-Host "  Port         - Benchmark target port (--port)"
-    Write-Host "  Threads      - Number of threads (--threads)"
-    Write-Host "  Runtime      - Runtime in seconds (--runtime)"
-    Write-Host "  DbSize       - Database size (--dbsize)"
-    Write-Host "  KeyLength    - Key length in bytes (--keylength)"
-    Write-Host "  ValueLength  - Value length in bytes (--valuelength)"
-    Write-Host "  BatchSize    - Batch size (--batchsize)"
-    Write-Host "  Op           - Operation type (--op, e.g., GET, SET, MGET)"
-    Write-Host "  ClusterBench - Enable cluster bench mode (true/false)"
-    Write-Host "  ExtraArgs    - Additional arguments to pass"
+    Write-Host "  SshKey           - Path to SSH private key"
+    Write-Host "  SshUser          - SSH username"
+    Write-Host "  SshHost          - Base remote hostname (vm prefix before index)"
+    Write-Host "  InstancePerHost  - Number of VM instances (generates vm0, vm1, ...)"
+    Write-Host "  Multiplier       - Benchmark instances per VM (default: 1)"
+    Write-Host "  Host             - Benchmark target host (--host)"
+    Write-Host "  Port             - Benchmark target port (--port)"
+    Write-Host "  Threads          - Number of threads (--threads)"
+    Write-Host "  Runtime          - Runtime in seconds (--runtime)"
+    Write-Host "  DbSize           - Database size (--dbsize)"
+    Write-Host "  KeyLength        - Key length in bytes (--keylength)"
+    Write-Host "  ValueLength      - Value length in bytes (--valuelength)"
+    Write-Host "  BatchSize        - Batch size (--batchsize)"
+    Write-Host "  Op               - Operation type (--op, e.g., GET, SET, MGET)"
+    Write-Host "  ClusterBench     - Enable cluster bench mode (true/false)"
+    Write-Host "  ExtraArgs        - Additional arguments to pass"
     return
 }
 
@@ -88,10 +88,10 @@ if (Test-Path $manifestPath) {
 } else {
     $sshKey = "$env:USERPROFILE\.ssh\id_ed25519"
 }
-$sshUser      = $config["SshUser"]      ?? "guser"
-$sshHostBase  = $config["SshHost"]      ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
-$sshCount     = [int]($config["SshCount"] ?? "1")
-$multiplier   = [int]($config["Multiplier"] ?? "1")
+$sshUser         = $config["SshUser"]         ?? "guser"
+$sshHostBase     = $config["SshHost"]         ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
+$instancePerHost = [int]($config["InstancePerHost"] ?? "1")
+$multiplier      = [int]($config["Multiplier"] ?? "1")
 $benchHost    = $config["Host"]         ?? "10.5.1.4"
 $benchPort    = $config["Port"]         ?? "7000"
 $threads      = $config["Threads"]      ?? "4"
@@ -115,7 +115,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
             $prefix = $Matches[1]
             $startIndex = [int]$Matches[2]
             $domain = $Matches[3]
-            for ($i = $startIndex; $i -lt ($startIndex + $sshCount); $i++) {
+            for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
                 for ($m = 0; $m -lt $multiplier; $m++) {
                     $sshHosts += "$prefix$i.$domain"
                 }
@@ -135,7 +135,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
         Write-Error "SshHost must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
         exit 1
     }
-    for ($i = $startIndex; $i -lt ($startIndex + $sshCount); $i++) {
+    for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
         for ($m = 0; $m -lt $multiplier; $m++) {
             $sshHosts += "$prefix$i.$domain"
         }
