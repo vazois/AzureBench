@@ -90,7 +90,7 @@ function Deploy-Vault {
     $existingVaults = az keyvault list --resource-group $rg --query "[].name" -o tsv 2>$null
     $vaultList = @()
     if ($existingVaults) {
-        $vaultList = $existingVaults -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $vaultList = @($existingVaults -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     }
 
     if ($vaultList.Count -gt 0) {
@@ -177,7 +177,7 @@ function Deploy-Vault {
     # Update vmss-parameters.json with keyVaultName
     if (Test-Path $vmssParamsFile) {
         $params = Get-Content $vmssParamsFile -Raw | ConvertFrom-Json
-        $params.parameters | Add-Member -NotePropertyName 'keyVaultName' -NotePropertyValue @{ value = $kvName } -Force
+        $params.parameters | Add-Member -NotePropertyName 'keyVaultName' -NotePropertyValue ([PSCustomObject]@{ value = $kvName }) -Force
         $params | ConvertTo-Json -Depth 5 | Set-Content -Path $vmssParamsFile -Encoding utf8
         Write-Host "  Updated $vmssParamsFile with keyVaultName=$kvName" -ForegroundColor Green
     }
@@ -230,7 +230,7 @@ switch ($Action) {
         }
 
         # Add/update sshPublicKeys parameter
-        $params.parameters | Add-Member -NotePropertyName 'sshPublicKeys' -NotePropertyValue @{ value = $pubKeys } -Force
+        $params.parameters | Add-Member -NotePropertyName 'sshPublicKeys' -NotePropertyValue ([PSCustomObject]@{ value = $pubKeys }) -Force
         $params | ConvertTo-Json -Depth 5 | Set-Content -Path $vmssParamsFile -Encoding utf8
 
         $allKeyNames = @($manifest.userKeys) + @($manifest.vmKeys)
@@ -254,7 +254,7 @@ switch ($Action) {
             exit 1
         }
 
-        $vaultList = $vaults -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $vaultList = @($vaults -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         if ($vaultList.Count -gt 1) {
             Write-Host "  Multiple vaults found:" -ForegroundColor Yellow
             $vaultList | ForEach-Object { Write-Host "    - $_" }
@@ -279,7 +279,7 @@ switch ($Action) {
                 parameters = @{}
             }
         }
-        $params.parameters | Add-Member -NotePropertyName 'keyVaultName' -NotePropertyValue @{ value = $discoveredKv } -Force
+        $params.parameters | Add-Member -NotePropertyName 'keyVaultName' -NotePropertyValue ([PSCustomObject]@{ value = $discoveredKv }) -Force
         $params | ConvertTo-Json -Depth 5 | Set-Content -Path $vmssParamsFile -Encoding utf8
         Write-Host "  Updated $vmssParamsFile with keyVaultName=$discoveredKv" -ForegroundColor Green
     }
