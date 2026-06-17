@@ -18,8 +18,8 @@
     Action to perform:
     - refresh (default): git pull all repos
     - rebuild: git pull + rebuild specified system (requires -System)
-    - reinit: git pull AzureBench + re-run full initialization
-    - update-scripts: git pull AzureBench + copy scripts only
+    - deploy: git pull AzureBench + run full deployment workflow
+    - install: git pull AzureBench + copy scripts only
 
 .PARAMETER System
     System to rebuild (required when Action=rebuild).
@@ -50,7 +50,7 @@ param(
 
     [string]$VmssName,
 
-    [ValidateSet('refresh', 'rebuild', 'reinit', 'update-scripts')]
+    [ValidateSet('refresh', 'rebuild', 'deploy', 'install')]
     [string]$Action = 'refresh',
 
     [ValidateSet('garnet', 'valkey', 'resp-bench', 'memtier')]
@@ -77,8 +77,8 @@ if ($Help -or -not $rg) {
     Write-Host "  -Action <action>    Action to perform (default: refresh)"
     Write-Host "                      refresh        - git pull all repos"
     Write-Host "                      rebuild        - git pull + rebuild system (requires -System)"
-    Write-Host "                      reinit         - git pull + re-run full initialization"
-    Write-Host "                      update-scripts - git pull + copy scripts only"
+    Write-Host "                      deploy         - git pull + run full deployment workflow"
+    Write-Host "                      install        - git pull + copy scripts only"
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
@@ -245,25 +245,33 @@ function Get-SshCommand {
             
             $buildArgs = $buildEntry.args
             
+            # Map system to repo (resp-bench is built from garnet)
+            $repoName = switch ($System) {
+                'resp-bench' { 'garnet' }  # resp-bench is part of garnet repo
+                default      { $System }
+            }
+            
             # Get repo path from repos.txt
             $reposFile = Join-Path $scriptDir "node\deploy\repos.txt"
             $repoPath = Get-Content $reposFile | ForEach-Object {
-                if ($_ -match "/$System\.git\|(.+)$") { return $Matches[1] }
+                if ($_ -match "/$repoName\.git\|(.+)$" -or $_ -match "/$repoName\|(.+)$") {
+                    return $Matches[1].Trim()
+                }
             } | Select-Object -First 1
             
             if (-not $repoPath) {
-                # Fallback: assume standard path
-                $repoPath = "/home/$SshUser/$System"
+                Write-Error "Could not find repo path for '$repoName' in repos.txt"
+                exit 1
             }
             
             return "cd $repoPath && echo '[git pull]' && git pull --ff-only && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
         }
         
-        'reinit' {
+        'deploy' {
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Run"
         }
         
-        'update-scripts' {
+        'install' {
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy"
         }
     }
@@ -304,11 +312,15 @@ foreach ($vmss in $targetVmss) {
     # Execute SSH command on each instance
     $sshOpts = @('-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
     
+    $instanceIndex = 0
+    $totalInstances = $instances.Count
+    
     foreach ($instance in $instances) {
+        $instanceIndex++
         $ip = $instance.ip
         $instanceName = $instance.instance
         
-        Write-Host "`n  >>> $instanceName ($ip)" -ForegroundColor Yellow
+        Write-Host "`n  $instanceIndex/$totalInstances >>> $instanceName ($ip)" -ForegroundColor Yellow
         
         $result = @{
             Vmss     = $vmss

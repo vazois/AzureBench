@@ -173,8 +173,8 @@ SSH into VMSS instances to refresh repositories, rebuild systems, or re-run init
 |--------|-------------|
 | `refresh` (default) | Git pull all repos (garnet, valkey, dragonfly, redis, memtier, AzureBench) |
 | `rebuild` | Git pull + rebuild specified system (requires `-System` parameter) |
-| `reinit` | Git pull AzureBench + re-run full initialization workflow |
-| `update-scripts` | Git pull AzureBench + copy scripts to system paths only |
+| `deploy` | Git pull AzureBench + run full deployment workflow from scratch |
+| `install` | Git pull AzureBench + copy scripts to system paths only |
 
 #### Examples
 
@@ -191,11 +191,11 @@ SSH into VMSS instances to refresh repositories, rebuild systems, or re-run init
 # Rebuild valkey with specific version (uses args from manifest.json: "valkey 9.0")
 .\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System valkey
 
-# Re-run full initialization on all VMSS
-.\update-nodes.ps1 -rg vazois-garnet -VmssName all -Action reinit
+# Run full deployment workflow from scratch on all VMSS
+.\update-nodes.ps1 -rg vazois-garnet -VmssName all -Action deploy
 
 # Update scripts only (no rebuild)
-.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action update-scripts
+.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action install
 ```
 
 **Notes:**
