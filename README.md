@@ -163,7 +163,48 @@ The script:
   TOTAL              2,222.21 Kops/sec |  0.830 GB/s data |  0.960 GB/s wire
 ```
 
-### 6. Update Keys on Live VMSS (Optional)
+### 6. Update Nodes (Refresh Repos, Rebuild Systems)
+
+SSH into VMSS instances to refresh repositories, rebuild systems, or re-run initialization workflows.
+
+#### Actions
+
+| Action | Description |
+|--------|-------------|
+| `refresh` (default) | Git pull all repos (garnet, valkey, dragonfly, redis, memtier, AzureBench) |
+| `rebuild` | Git pull + rebuild specified system (requires `-System` parameter) |
+| `reinit` | Git pull AzureBench + re-run full initialization workflow |
+| `update-scripts` | Git pull AzureBench + copy scripts to system paths only |
+
+#### Examples
+
+```powershell
+# List VMSS in resource group and prompt for selection, then refresh all repos
+.\update-nodes.ps1 -rg vazois-garnet
+
+# Refresh repos on specific VMSS
+.\update-nodes.ps1 -rg vazois-garnet -VmssName server
+
+# Rebuild garnet on multiple VMSS (pulls main, builds, installs to /usr/local/bin)
+.\update-nodes.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
+
+# Rebuild valkey with specific version (uses args from manifest.json: "valkey 9.0")
+.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System valkey
+
+# Re-run full initialization on all VMSS
+.\update-nodes.ps1 -rg vazois-garnet -VmssName all -Action reinit
+
+# Update scripts only (no rebuild)
+.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action update-scripts
+```
+
+**Notes:**
+- Rebuild arguments (e.g., branch names, build flags) are read from `node/manifest.json` to ensure consistency
+- Supports multiple VMSS: `-VmssName server,client` or `-VmssName all`
+- SSH keys automatically resolved from `security/manifest.json` (userKeys)
+- Results reported per-instance with success/failure summary
+
+### 7. Update Keys on Live VMSS (Optional)
 
 ```powershell
 .\deploy-keys.ps1 -Action update -VmssName <name>
@@ -182,4 +223,5 @@ Pushes new SSH keys to running VMs without redeployment.
 | `benchmark/` | Benchmark launcher, config, and results |
 | `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
+| `update-nodes.ps1` | SSH-based repo refresh, system rebuild, and initialization |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |

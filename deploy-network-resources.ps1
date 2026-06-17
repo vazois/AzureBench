@@ -34,8 +34,33 @@ param(
     [ValidateSet('deploy', 'stage')]
     [string]$Action = 'deploy',
 
-    [string]$DeploymentName = 'network-deploy'
+    [string]$DeploymentName = 'network-deploy',
+    
+    [switch]$Help
 )
+
+if ($Help) {
+    Write-Host "Usage: deploy-network-resources.ps1 [options]" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Deploys network infrastructure (NSG, VNet, Proximity Group) and generates vmss-parameters.json."
+    Write-Host ""
+    Write-Host "Parameters:"
+    Write-Host "  -rg <name>              Resource group name (default: vazois-garnet)"
+    Write-Host "  -Action <action>        Action to perform (default: deploy)"
+    Write-Host "                          deploy - Deploy network resources and generate parameters"
+    Write-Host "                          stage  - Query existing resources and generate parameters (no deployment)"
+    Write-Host "  -DeploymentName <name>  Deployment name (default: network-deploy)"
+    Write-Host "  -Help                   Show this help message"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\deploy-network-resources.ps1"
+    Write-Host "  .\deploy-network-resources.ps1 -rg my-rg -Action deploy"
+    Write-Host "  .\deploy-network-resources.ps1 -rg my-rg -Action stage"
+    Write-Host ""
+    Write-Host "For detailed help: Get-Help .\deploy-network-resources.ps1 -Detailed"
+    Write-Host ""
+    return
+}
 
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path

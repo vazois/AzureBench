@@ -47,8 +47,37 @@ param(
 
     [string]$VmssName,
 
-    [string]$SshUser = 'guser'
+    [string]$SshUser = 'guser',
+    
+    [switch]$Help
 )
+
+if ($Help) {
+    Write-Host "Usage: deploy-keys.ps1 [options]" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Manages SSH keys for VMSS deployment and Key Vault provisioning."
+    Write-Host ""
+    Write-Host "Parameters:"
+    Write-Host "  -Action <action>     Action to perform (default: deploy)"
+    Write-Host "                       deploy - Copy keys, update params, deploy Key Vault"
+    Write-Host "                       vault  - Only deploy Key Vault and upload private key"
+    Write-Host "                       sync   - Discover Key Vault and update parameters"
+    Write-Host "                       update - Push keys to running VMSS instances"
+    Write-Host "  -rg <name>           Resource group name (default: vazois-garnet)"
+    Write-Host "  -VmssName <name>     VMSS name (required for 'update' action)"
+    Write-Host "  -SshUser <user>      SSH username (default: guser)"
+    Write-Host "  -Help                Show this help message"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\deploy-keys.ps1"
+    Write-Host "  .\deploy-keys.ps1 -Action vault -rg my-rg"
+    Write-Host "  .\deploy-keys.ps1 -Action sync -rg garnet-bench"
+    Write-Host "  .\deploy-keys.ps1 -Action update -VmssName server"
+    Write-Host ""
+    Write-Host "For detailed help: Get-Help .\deploy-keys.ps1 -Detailed"
+    Write-Host ""
+    return
+}
 
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
