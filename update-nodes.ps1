@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+[CmdletBinding()]
 <#
 .SYNOPSIS
     Updates and rebuilds software on VMSS nodes via SSH.
@@ -28,9 +29,6 @@
 .PARAMETER SshUser
     SSH username (default: guser)
 
-.PARAMETER Parallel
-    Execute commands in parallel across all instances (otherwise sequential)
-
 .EXAMPLE
     # List VMSS and prompt for selection, then refresh all repos
     .\update-nodes.ps1 -rg vazois-garnet
@@ -41,8 +39,8 @@
     # Rebuild garnet on multiple VMSS
     .\update-nodes.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
 
-    # Re-run initialization on all VMSS
-    .\update-nodes.ps1 -rg vazois-garnet -VmssName all -Action reinit
+    # Verbose output (show per-instance command output)
+    .\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System garnet -Verbose
 #>
 
 param(
@@ -57,8 +55,6 @@ param(
     [string]$System,
 
     [string]$SshUser = 'guser',
-
-    [switch]$Parallel,
 
     [switch]$Help
 )
@@ -82,7 +78,7 @@ if ($Help -or -not $rg) {
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
-    Write-Host "  -Parallel           Execute in parallel across instances"
+    Write-Host "  -Verbose            Show per-instance command output"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -97,6 +93,9 @@ if ($Help -or -not $rg) {
 
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# --- Load shared utilities ---
+. "$scriptDir\benchmark\utils.ps1"
 
 # Validate Action and System parameter combination
 if ($Action -eq 'rebuild' -and -not $System) {
@@ -318,115 +317,77 @@ foreach ($vmss in $targetVmss) {
     $sshOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
     $totalInstances = $instances.Count
 
-    if ($Parallel) {
-        # Parallel execution using ForEach-Object -Parallel
-        Write-Host "Running in parallel mode ($totalInstances instances)..." -ForegroundColor Magenta
+    # Parallel execution with progress bar
+    $parallelStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $parallelProgress = [hashtable]::Synchronized(@{ done = 0; failed = 0 })
 
-        $results = $instances | ForEach-Object -Parallel {
-            $instance = $_
-            $ip = $instance.ip
-            $instanceName = $instance.instance
+    $parallelJob = $instances | ForEach-Object -Parallel {
+        $instance = $_
+        $ip = $instance.ip
+        $instanceName = $instance.instance
 
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            $outputText = ""
-            $success = $false
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $outputText = ""
+        $success = $false
 
-            try {
-                $output = ssh -i $using:sshKey $using:sshOpts "${using:SshUser}@${ip}" $using:sshCommand 2>&1
-                $exitCode = $LASTEXITCODE
-                $outputText = $output -join "`n"
-                $success = ($exitCode -eq 0)
-            } catch {
-                $outputText = $_.Exception.Message
-            }
-            $sw.Stop()
-            $duration = $sw.Elapsed.ToString('mm\:ss\.ff')
+        try {
+            $output = ssh -i $using:sshKey $using:sshOpts "${using:SshUser}@${ip}" $using:sshCommand 2>&1
+            $exitCode = $LASTEXITCODE
+            $outputText = $output -join "`n"
+            $success = ($exitCode -eq 0)
+        } catch {
+            $outputText = $_.Exception.Message
+        }
+        $sw.Stop()
+        $duration = $sw.Elapsed.ToString('mm\:ss\.ff')
 
-            $status = if ($success) { "SUCCESS" } else { "FAILED" }
-            Write-Host "  [done] $instanceName ($ip) - $status [$duration]" -ForegroundColor $(if ($success) { 'Green' } else { 'Red' })
+        $p = $using:parallelProgress
+        $p.done++
+        if (-not $success) { $p.failed++ }
 
-            [PSCustomObject]@{
-                Vmss     = $using:vmss
-                Instance = $instanceName
-                IP       = $ip
-                Success  = $success
-                Output   = $outputText
-                Duration = $duration
-            }
-        } -ThrottleLimit $totalInstances
+        [PSCustomObject]@{
+            Vmss     = $using:vmss
+            Instance = $instanceName
+            IP       = $ip
+            Success  = $success
+            Output   = $outputText
+            Duration = $duration
+        }
+    } -ThrottleLimit $totalInstances -AsJob
 
-        # Print results after all complete
+    Wait-ParallelJob -Job $parallelJob -Progress $parallelProgress -Total $totalInstances -Stopwatch $parallelStopwatch -Label "Processing"
+
+    $results = $parallelJob | Receive-Job -Wait
+    Remove-Job $parallelJob
+    $parallelStopwatch.Stop()
+
+    $pSuccess = ($results | Where-Object { $_.Success }).Count
+    $pFailed = $results.Count - $pSuccess
+    Write-Host "  ✓ Complete: $pSuccess/$($results.Count) succeeded | Elapsed: $($parallelStopwatch.Elapsed.ToString('mm\:ss\.ff'))" -ForegroundColor $(if ($pFailed -gt 0) { 'Yellow' } else { 'Green' })
+
+    if ($pFailed -gt 0) {
+        Write-Host "  Failed:" -ForegroundColor Red
+        $results | Where-Object { -not $_.Success } | ForEach-Object {
+            Write-Host "    $($_.Instance) ($($_.IP)) [$($_.Duration)]" -ForegroundColor Red
+        }
+    }
+
+    # Verbose: show per-instance output
+    $isVerbose = $VerbosePreference -ne 'SilentlyContinue'
+    if ($isVerbose) {
+        Write-Host ""
         $idx = 0
         foreach ($r in $results) {
             $idx++
-            Write-Host "`n  $idx/$totalInstances >>> $($r.Instance) ($($r.IP)) [$($r.Duration)]" -ForegroundColor Yellow
-            if ($r.Success) {
-                Write-Host "  Status: SUCCESS" -ForegroundColor Green
-                if ($r.Output) {
-                    $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-                }
-            } else {
-                Write-Host "  Status: FAILED" -ForegroundColor Red
-                if ($r.Output) {
-                    $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-                }
+            $color = if ($r.Success) { 'Green' } else { 'Red' }
+            Write-Host "  $idx/$totalInstances >>> $($r.Instance) ($($r.IP)) [$($r.Duration)]" -ForegroundColor $color
+            if ($r.Output) {
+                $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
             }
-        }
-
-        $allResults += $results
-    } else {
-        # Sequential execution
-        $instanceIndex = 0
-
-        foreach ($instance in $instances) {
-            $instanceIndex++
-            $ip = $instance.ip
-            $instanceName = $instance.instance
-
-            Write-Host "`n  $instanceIndex/$totalInstances >>> $instanceName ($ip)" -ForegroundColor Yellow
-
-            $result = @{
-                Vmss     = $vmss
-                Instance = $instanceName
-                IP       = $ip
-                Success  = $false
-                Output   = ""
-                Duration = ""
-            }
-
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            try {
-                $output = ssh -i $sshKey @sshOpts "${SshUser}@${ip}" $sshCommand 2>&1
-                $exitCode = $LASTEXITCODE
-
-                $result.Output = $output -join "`n"
-
-                if ($exitCode -eq 0) {
-                    $result.Success = $true
-                } else {
-                    Write-Host "  Status: FAILED (exit code: $exitCode)" -ForegroundColor Red
-                }
-            } catch {
-                $result.Output = $_.Exception.Message
-            }
-            $sw.Stop()
-            $result.Duration = $sw.Elapsed.ToString('mm\:ss\.ff')
-
-            if ($result.Success) {
-                Write-Host "  Status: SUCCESS [$($result.Duration)]" -ForegroundColor Green
-                if ($output) {
-                    $output | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-                }
-            } elseif (-not $result.Success -and $result.Output) {
-                Write-Host "  [$($result.Duration)]" -ForegroundColor DarkGray
-                $result.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-            } else {
-                Write-Host "  Status: ERROR [$($result.Duration)] - $($result.Output)" -ForegroundColor Red
-            }
-
-            $allResults += [PSCustomObject]$result
         }
     }
+
+    $allResults += $results
 }
 
 # --- Summary ---

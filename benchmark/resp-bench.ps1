@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+[CmdletBinding()]
 <#
 .SYNOPSIS
     Spawns background SSH sessions to run Resp.benchmark on remote VMs.
@@ -9,9 +10,13 @@
     client VMs by specifying a base hostname and count. Automatically aggregates
     results when all instances complete.
 
+    Use -Verbose to spawn Windows Terminal panes for visual inspection.
+    Without -Verbose, runs inline and aggregates results automatically.
+
 .EXAMPLE
     .\resp-bench.ps1
     .\resp-bench.ps1 -ConfigFile .\my-bench.conf
+    .\resp-bench.ps1 -ConfigFile .\my-bench.conf -Verbose
 #>
 param(
     [string]$ConfigFile = "$PSScriptRoot\bench.conf",
@@ -19,10 +24,13 @@ param(
 )
 
 if ($Help) {
-    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>]"
+    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>] [-Verbose]"
     Write-Host ""
-    Write-Host "Reads parameters from a key=value config file and spawns"
-    Write-Host "SSH sessions to run Resp.benchmark in background windows."
+    Write-Host "Reads parameters from a key=value config file and runs"
+    Write-Host "Resp.benchmark on remote VMs via SSH."
+    Write-Host ""
+    Write-Host "Without -Verbose: runs inline in parallel, aggregates results."
+    Write-Host "With -Verbose: spawns Windows Terminal panes for visual inspection."
     Write-Host ""
     Write-Host "Config file keys:"
     Write-Host "  SshKey           - Path to SSH private key"
@@ -43,6 +51,9 @@ if ($Help) {
     Write-Host "  ExtraArgs        - Additional arguments to pass"
     return
 }
+
+# --- Load shared utilities ---
+. "$PSScriptRoot\utils.ps1"
 
 # --- Parse config file ---
 if (-not (Test-Path $ConfigFile)) {
@@ -184,63 +195,130 @@ New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 Write-Host "Results will be saved to: $runDir" -ForegroundColor DarkGray
 Write-Host ""
 
-# --- Spawn panes in Windows Terminal with Tee-Object ---
-Write-Host "Launching $($sshHosts.Count) pane(s) in Windows Terminal..." -ForegroundColor Yellow
+# --- Launch benchmark ---
 
-$maxPerTab = 2
-$wtArgs = @()
-$logFiles = @()
-for ($i = 0; $i -lt $sshHosts.Count; $i++) {
-    $host_ = $sshHosts[$i]
-    $logFile = "$runDir\$($host_ -replace '\.', '-')-$i.log"
-    $logFiles += $logFile
-    $paneCmd = "powershell -NoExit -Command `"ssh -i '$sshKey' -o StrictHostKeyChecking=no $sshUser@$host_ '$benchCmd' 2>&1 | Tee-Object -FilePath '$logFile'`""
+# SSH options for inline mode
+$sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
+$isVerbose = $VerbosePreference -ne 'SilentlyContinue'
 
-    if ($i % $maxPerTab -eq 0) {
-        if ($i -eq 0) {
-            $wtArgs += "new-tab --title `"$host_`" $paneCmd"
+if ($isVerbose) {
+    # Verbose mode: spawn Windows Terminal panes for visual inspection
+    Write-Host "Launching $($sshHosts.Count) pane(s) in Windows Terminal..." -ForegroundColor Yellow
+
+    $maxPerTab = 2
+    $wtArgs = @()
+    $logFiles = @()
+    for ($i = 0; $i -lt $sshHosts.Count; $i++) {
+        $host_ = $sshHosts[$i]
+        $logFile = "$runDir\$($host_ -replace '\.', '-')-$i.log"
+        $logFiles += $logFile
+        $paneCmd = "powershell -NoExit -Command `"ssh -i '$sshKey' -o StrictHostKeyChecking=no $sshUser@$host_ '$benchCmd' 2>&1 | Tee-Object -FilePath '$logFile'`""
+
+        if ($i % $maxPerTab -eq 0) {
+            if ($i -eq 0) {
+                $wtArgs += "new-tab --title `"$host_`" $paneCmd"
+            } else {
+                $wtArgs += "; new-tab --title `"$host_`" $paneCmd"
+            }
         } else {
-            $wtArgs += "; new-tab --title `"$host_`" $paneCmd"
+            $wtArgs += "; split-pane -H --title `"$host_`" $paneCmd"
         }
-    } else {
-        $wtArgs += "; split-pane -H --title `"$host_`" $paneCmd"
     }
-}
 
-$tabs = [math]::Ceiling($sshHosts.Count / $maxPerTab)
-$wtArgString = $wtArgs -join " "
-Start-Process -FilePath "wt" -ArgumentList $wtArgString -Wait:$false
+    $tabs = [math]::Ceiling($sshHosts.Count / $maxPerTab)
+    $wtArgString = $wtArgs -join " "
+    Start-Process -FilePath "wt" -ArgumentList $wtArgString -Wait:$false
 
-Write-Host "$($sshHosts.Count) benchmark pane(s) launched across $tabs tab(s)." -ForegroundColor Green
-Write-Host ""
+    Write-Host "$($sshHosts.Count) benchmark pane(s) launched across $tabs tab(s)." -ForegroundColor Green
+    Write-Host ""
 
-# --- Wait for all benchmarks to complete ---
-Write-Host "Waiting for benchmarks to complete (runtime: ${runtime}s)..." -ForegroundColor Yellow
+    # Wait for all benchmarks to complete
+    Write-Host "Waiting for benchmarks to complete (runtime: ${runtime}s)..." -ForegroundColor Yellow
 
-$timeout = [int]$runtime + 120
-$elapsed = 0
-$pollInterval = 5
+    $timeout = [int]$runtime + 120
+    $elapsed = 0
+    $pollInterval = 5
 
-while ($elapsed -lt $timeout) {
-    Start-Sleep -Seconds $pollInterval
-    $elapsed += $pollInterval
+    while ($elapsed -lt $timeout) {
+        Start-Sleep -Seconds $pollInterval
+        $elapsed += $pollInterval
 
-    $completed = 0
-    foreach ($lf in $logFiles) {
-        if (Test-Path $lf) {
-            $content = Get-Content $lf -Raw -ErrorAction SilentlyContinue
-            if ($content -and $content -match 'Total throughput:') {
-                $completed++
+        $completed = 0
+        foreach ($lf in $logFiles) {
+            if (Test-Path $lf) {
+                $content = Get-Content $lf -Raw -ErrorAction SilentlyContinue
+                if ($content -and $content -match 'Total throughput:') {
+                    $completed++
+                }
             }
         }
+
+        Write-Host "`r  Progress: $completed/$($logFiles.Count) complete | ${elapsed}s elapsed" -NoNewline
+        if ($completed -eq $logFiles.Count) { break }
     }
 
-    Write-Host "`r  Progress: $completed/$($logFiles.Count) complete | ${elapsed}s elapsed" -NoNewline
-    if ($completed -eq $logFiles.Count) { break }
-}
+    Write-Host ""
+    Write-Host ""
+} else {
+    # Non-verbose: run inline in parallel, collect results
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $totalCount = $sshHosts.Count
+    $benchProgress = [hashtable]::Synchronized(@{ done = 0; failed = 0 })
 
-Write-Host ""
-Write-Host ""
+    $benchJob = $sshHosts | ForEach-Object -Parallel {
+        $host_ = $_
+        $idx = ($using:sshHosts).IndexOf($host_)
+        $logFile = "$using:runDir\$($host_ -replace '\.', '-')-$idx.log"
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $success = $false
+        $outputText = ""
+
+        try {
+            $benchCommand = $using:benchCmd
+            $output = ssh -n -i $using:sshKey $using:sshOpts "${using:sshUser}@${host_}" $benchCommand 2>&1
+            $exitCode = $LASTEXITCODE
+            $outputText = $output -join "`n"
+            $success = ($exitCode -eq 0)
+            $outputText | Out-File -FilePath $logFile -Encoding utf8
+        } catch {
+            $outputText = $_.Exception.Message
+        }
+        $sw.Stop()
+        $duration = $sw.Elapsed.ToString('mm\:ss\.ff')
+
+        $p = $using:benchProgress
+        $p.done++
+        if (-not $success) { $p.failed++ }
+
+        [PSCustomObject]@{
+            Host    = $host_
+            Success = $success
+            Output  = $outputText
+            LogFile = $logFile
+            Duration = $duration
+        }
+    } -ThrottleLimit $totalCount -AsJob
+
+    Wait-ParallelJob -Job $benchJob -Progress $benchProgress -Total $totalCount -Stopwatch $stopwatch -Label "Running"
+
+    $benchResults = $benchJob | Receive-Job -Wait
+    Remove-Job $benchJob
+
+    $stopwatch.Stop()
+    $benchSuccess = ($benchResults | Where-Object { $_.Success }).Count
+    $benchFailed = $benchResults.Count - $benchSuccess
+    Write-Host "  ✓ Benchmark complete: $benchSuccess/$totalCount succeeded | Elapsed: $($stopwatch.Elapsed.ToString('mm\:ss\.ff'))" -ForegroundColor $(if ($benchFailed -gt 0) { 'Yellow' } else { 'Green' })
+
+    if ($benchFailed -gt 0) {
+        Write-Host "  Failed hosts:" -ForegroundColor Red
+        $benchResults | Where-Object { -not $_.Success } | ForEach-Object {
+            Write-Host "    $($_.Host) [$($_.Duration)]" -ForegroundColor Red
+        }
+    }
+    Write-Host ""
+
+    $logFiles = $benchResults | ForEach-Object { $_.LogFile }
+}
 
 # --- Aggregate results ---
 Write-Host "=== Aggregate Results ($runTimestamp) ===" -ForegroundColor Cyan
