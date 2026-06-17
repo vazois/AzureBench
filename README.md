@@ -20,6 +20,13 @@ Automated deployment of benchmarking environments on Azure using VMSS (Virtual M
 
 Creates NSG, VNet, and a proximity placement group. Auto-generates `vmss-parameters.json` with resource IDs.
 
+#### Actions
+
+| Action | Command | Description |
+|--------|---------|-------------|
+| `deploy` (default) | `.\deploy-network-resources.ps1` | Deploys network resources and generates `vmss-parameters.json` |
+| `stage` | `.\deploy-network-resources.ps1 -Action stage -rg <rg>` | Queries existing resources in the resource group and generates `vmss-parameters.json` (no deployment) |
+
 The VNet contains three subnets:
 
 | Subnet | Prefix | Purpose |
