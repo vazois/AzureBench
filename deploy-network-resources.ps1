@@ -126,7 +126,7 @@ $vmssParams = @{
         location         = @{ value = $location }
         subnetName       = @{ value = $subnetName }
         accSubnetName    = @{ value = $accSubnetName }
-        clientSubnetName = @{ value = $clientSubnetName }
+        # clientSubnetName = @{ value = $clientSubnetName }  # Uncomment when vmssRole is re-enabled in vmss.bicep
         nsgId            = @{ value = $nsgId }
         proximityId      = @{ value = $proximityId }
         vnetName         = @{ value = $vnetName }

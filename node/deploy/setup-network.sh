@@ -130,6 +130,10 @@ sysctl -w net.ipv4.conf.$IFACE.rp_filter=0
 # Route eth1 subnet traffic through table 100 via eth1
 ip route add $SUBNET_CIDR dev $IFACE src $ETH1_IP table 100 2>/dev/null || true
 
+# Route the full VNet range via eth1 so cross-subnet replies (e.g., 10.5.2.X -> 10.5.1.X) also go out eth1
+VNET_CIDR="${VNET_PREFIX:-10.5.0.0/16}"
+ip route add $VNET_CIDR dev $IFACE src $ETH1_IP table 100 2>/dev/null || true
+
 # Force all packets with src=eth1_IP to use routing table 100
 ip rule add from $ETH1_IP table 100 priority 100 2>/dev/null || true
 

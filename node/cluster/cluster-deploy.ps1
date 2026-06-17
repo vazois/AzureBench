@@ -110,6 +110,13 @@ function Find-Peers {
     param([string]$OwnIp, [int]$Prefix, [string]$SshUser, [int]$Timeout)
     Write-Host "Discovering peers on eth1 subnet ($OwnIp/$Prefix)..." -ForegroundColor Yellow
 
+    # Get local VMSS prefix to filter out VMs from other scale sets
+    $localHostname = hostname
+    $localVmssPrefix = if ($localHostname -match '^(.+?)\d{6}$') { $Matches[1] } else { "" }
+    if ($localVmssPrefix) {
+        Write-Host "  Local VMSS prefix: $localVmssPrefix" -ForegroundColor DarkGray
+    }
+
     $candidateIps = Get-SubnetIps -Ip $OwnIp -Prefix $Prefix
     Write-Host "  Scanning $($candidateIps.Count) candidate IPs (100ms timeout)..." -ForegroundColor DarkGray
 
@@ -120,8 +127,20 @@ function Find-Peers {
             $task = $tcp.ConnectAsync($ip, 22)
             if ($task.Wait([TimeSpan]::FromMilliseconds($SshTimeout))) {
                 $tcp.Close()
-                $peers += $ip
-                Write-Host "  $ip : alive" -ForegroundColor DarkGray
+
+                # Filter by VMSS family if we know our prefix
+                if ($localVmssPrefix) {
+                    $peerHostname = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
+                    if ($peerHostname -and $peerHostname -match "^${localVmssPrefix}\d{6}$") {
+                        $peers += $ip
+                        Write-Host "  $ip : $peerHostname ✓" -ForegroundColor DarkGray
+                    } else {
+                        Write-Host "  $ip : $peerHostname (different VMSS, skipped)" -ForegroundColor DarkGray
+                    }
+                } else {
+                    $peers += $ip
+                    Write-Host "  $ip : alive" -ForegroundColor DarkGray
+                }
             } else {
                 $tcp.Dispose()
             }
