@@ -158,7 +158,7 @@ function Start-Garnet {
         $conf = "$dir/garnet.conf"
         if (-not (Test-Path $conf)) { throw "ERROR: $conf not found" }
 
-        $running = bash -c "pgrep -f 'GarnetServer.*--port ${port}'" 2>$null
+        $running = bash -c "pgrep -f 'GarnetServer.*/${port}/garnet.conf'" 2>$null
         if ($running) { Write-Host "  Port ${port}: already running (skipped)" -ForegroundColor DarkGray; continue }
 
         Set-Location $dir
@@ -197,7 +197,7 @@ function Stop-System {
         if ($Count -gt 0) {
             for ($i = 0; $i -lt $Count; $i++) {
                 $port = $BASE_PORT + $i
-                $raw = bash -c "pgrep -f 'GarnetServer.*--port ${port}'" 2>$null
+                $raw = bash -c "pgrep -f 'GarnetServer.*/${port}/garnet.conf'" 2>$null
                 $procId = if ($raw) { $raw.Trim() } else { "" }
                 if ($procId) { bash -c "kill $procId"; Write-Host "  Garnet port ${port}: stopped (pid $procId)" }
                 else { Write-Host "  Garnet port ${port}: not running" -ForegroundColor DarkGray }
@@ -207,7 +207,7 @@ function Stop-System {
             $procIds = if ($raw) { $raw.Trim() -split "`n" | Where-Object { $_ } } else { @() }
             if ($procIds) {
                 foreach ($p in $procIds) {
-                    $portMatch = bash -c "ps -p $p -o args= 2>/dev/null" | Select-String -Pattern '--port (\d+)'
+                    $portMatch = bash -c "ps -p $p -o args= 2>/dev/null" | Select-String -Pattern '/(\d+)/garnet\.conf'
                     $port = if ($portMatch) { $portMatch.Matches[0].Groups[1].Value } else { "?" }
                     bash -c "kill $p"
                     Write-Host "  GarnetServer port ${port}: stopped (pid $p)"
