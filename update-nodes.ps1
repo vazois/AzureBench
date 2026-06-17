@@ -50,7 +50,7 @@ param(
 
     [string]$VmssName,
 
-    [ValidateSet('refresh', 'rebuild', 'deploy', 'install')]
+    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping')]
     [string]$Action = 'refresh',
 
     [ValidateSet('garnet', 'valkey', 'resp-bench', 'memtier')]
@@ -59,7 +59,7 @@ param(
     [string]$SshUser = 'guser',
 
     [switch]$Parallel,
-    
+
     [switch]$Help
 )
 
@@ -129,7 +129,7 @@ if (-not $VmssName) {
     }
     Write-Host ""
     $selection = Read-Host "Select VMSS (comma-separated indices/names, or 'all')"
-    
+
     if ($selection -eq 'all') {
         $targetVmss = $allVmss
     } else {
@@ -202,7 +202,7 @@ Write-Host "Using SSH key: $sshKey" -ForegroundColor DarkGray
 # --- Build SSH Command based on Action ---
 function Get-SshCommand {
     param([string]$Action, [string]$System)
-    
+
     switch ($Action) {
         'refresh' {
             # Read repos.txt to get all repo paths
@@ -211,20 +211,20 @@ function Get-SshCommand {
                 Write-Error "repos.txt not found at $reposFile"
                 exit 1
             }
-            
+
             $repoPaths = Get-Content $reposFile | ForEach-Object {
                 if ($_ -match '^\s*$' -or $_ -match '^\s*#') { return }
                 $parts = $_ -split '\|'
                 if ($parts.Count -ge 3) { $parts[2].Trim() }
             } | Where-Object { $_ }
-            
+
             $pullCommands = $repoPaths | ForEach-Object {
                 "cd $_ && git pull --ff-only 2>&1 | sed 's/^/[$([System.IO.Path]::GetFileName($_))]: /'"
             }
-            
+
             return $pullCommands -join '; '
         }
-        
+
         'rebuild' {
             # Read manifest.json to get build arguments
             $manifestFile = Join-Path $scriptDir "node\manifest.json"
@@ -232,25 +232,25 @@ function Get-SshCommand {
                 Write-Error "node/manifest.json not found"
                 exit 1
             }
-            
+
             $nodeManifest = Get-Content $manifestFile -Raw | ConvertFrom-Json
             $buildEntry = $nodeManifest.runcmd | Where-Object {
                 $_.run -eq 'build.sh' -and $_.args -match "^$System\b"
             } | Select-Object -First 1
-            
+
             if (-not $buildEntry) {
                 Write-Error "No build entry found in manifest for system '$System'"
                 exit 1
             }
-            
+
             $buildArgs = $buildEntry.args
-            
+
             # Map system to repo (resp-bench is built from garnet)
             $repoName = switch ($System) {
                 'resp-bench' { 'garnet' }  # resp-bench is part of garnet repo
                 default      { $System }
             }
-            
+
             # Get repo path from repos.txt
             $reposFile = Join-Path $scriptDir "node\deploy\repos.txt"
             $repoPath = Get-Content $reposFile | ForEach-Object {
@@ -258,21 +258,25 @@ function Get-SshCommand {
                     return $Matches[1].Trim()
                 }
             } | Select-Object -First 1
-            
+
             if (-not $repoPath) {
                 Write-Error "Could not find repo path for '$repoName' in repos.txt"
                 exit 1
             }
-            
+
             return "cd $repoPath && echo '[git pull]' && git pull --ff-only && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
         }
-        
+
         'deploy' {
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Run"
         }
-        
+
         'install' {
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy"
+        }
+
+        'ping' {
+            return "echo pong && hostname"
         }
     }
 }
@@ -285,80 +289,151 @@ Write-Host ""
 
 # --- Execute on all VMSS ---
 $allResults = @()
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 foreach ($vmss in $targetVmss) {
     Write-Host "`n=== Processing VMSS: $vmss ===" -ForegroundColor Cyan
-    
+
     # Get instance public IPs
     $ipsJson = az vmss list-instance-public-ips `
         --resource-group $rg `
         --name $vmss `
         --query '[].{instance:name, ip:ipAddress}' -o json 2>$null
-    
+
     if ($LASTEXITCODE -ne 0 -or -not $ipsJson) {
         Write-Warning "Failed to get public IPs for VMSS '$vmss'. Skipping."
         continue
     }
-    
+
     $instances = $ipsJson | ConvertFrom-Json
-    
+
     if ($instances.Count -eq 0) {
         Write-Warning "No instances with public IPs found in VMSS '$vmss'. Skipping."
         continue
     }
-    
+
     Write-Host "Found $($instances.Count) instance(s) with public IPs" -ForegroundColor Yellow
-    
+
     # Execute SSH command on each instance
-    $sshOpts = @('-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
-    
-    $instanceIndex = 0
+    $sshOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
     $totalInstances = $instances.Count
-    
-    foreach ($instance in $instances) {
-        $instanceIndex++
-        $ip = $instance.ip
-        $instanceName = $instance.instance
-        
-        Write-Host "`n  $instanceIndex/$totalInstances >>> $instanceName ($ip)" -ForegroundColor Yellow
-        
-        $result = @{
-            Vmss     = $vmss
-            Instance = $instanceName
-            IP       = $ip
-            Success  = $false
-            Output   = ""
-        }
-        
-        try {
-            $output = ssh -i $sshKey @sshOpts "${SshUser}@${ip}" $sshCommand 2>&1
-            $exitCode = $LASTEXITCODE
-            
-            $result.Output = $output -join "`n"
-            
-            if ($exitCode -eq 0) {
-                $result.Success = $true
+
+    if ($Parallel) {
+        # Parallel execution using ForEach-Object -Parallel
+        Write-Host "Running in parallel mode ($totalInstances instances)..." -ForegroundColor Magenta
+
+        $results = $instances | ForEach-Object -Parallel {
+            $instance = $_
+            $ip = $instance.ip
+            $instanceName = $instance.instance
+
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $outputText = ""
+            $success = $false
+
+            try {
+                $output = ssh -i $using:sshKey $using:sshOpts "${using:SshUser}@${ip}" $using:sshCommand 2>&1
+                $exitCode = $LASTEXITCODE
+                $outputText = $output -join "`n"
+                $success = ($exitCode -eq 0)
+            } catch {
+                $outputText = $_.Exception.Message
+            }
+            $sw.Stop()
+            $duration = $sw.Elapsed.ToString('mm\:ss\.ff')
+
+            $status = if ($success) { "SUCCESS" } else { "FAILED" }
+            Write-Host "  [done] $instanceName ($ip) - $status [$duration]" -ForegroundColor $(if ($success) { 'Green' } else { 'Red' })
+
+            [PSCustomObject]@{
+                Vmss     = $using:vmss
+                Instance = $instanceName
+                IP       = $ip
+                Success  = $success
+                Output   = $outputText
+                Duration = $duration
+            }
+        } -ThrottleLimit $totalInstances
+
+        # Print results after all complete
+        $idx = 0
+        foreach ($r in $results) {
+            $idx++
+            Write-Host "`n  $idx/$totalInstances >>> $($r.Instance) ($($r.IP)) [$($r.Duration)]" -ForegroundColor Yellow
+            if ($r.Success) {
                 Write-Host "  Status: SUCCESS" -ForegroundColor Green
+                if ($r.Output) {
+                    $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+                }
+            } else {
+                Write-Host "  Status: FAILED" -ForegroundColor Red
+                if ($r.Output) {
+                    $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+                }
+            }
+        }
+
+        $allResults += $results
+    } else {
+        # Sequential execution
+        $instanceIndex = 0
+
+        foreach ($instance in $instances) {
+            $instanceIndex++
+            $ip = $instance.ip
+            $instanceName = $instance.instance
+
+            Write-Host "`n  $instanceIndex/$totalInstances >>> $instanceName ($ip)" -ForegroundColor Yellow
+
+            $result = @{
+                Vmss     = $vmss
+                Instance = $instanceName
+                IP       = $ip
+                Success  = $false
+                Output   = ""
+                Duration = ""
+            }
+
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $output = ssh -i $sshKey @sshOpts "${SshUser}@${ip}" $sshCommand 2>&1
+                $exitCode = $LASTEXITCODE
+
+                $result.Output = $output -join "`n"
+
+                if ($exitCode -eq 0) {
+                    $result.Success = $true
+                } else {
+                    Write-Host "  Status: FAILED (exit code: $exitCode)" -ForegroundColor Red
+                }
+            } catch {
+                $result.Output = $_.Exception.Message
+            }
+            $sw.Stop()
+            $result.Duration = $sw.Elapsed.ToString('mm\:ss\.ff')
+
+            if ($result.Success) {
+                Write-Host "  Status: SUCCESS [$($result.Duration)]" -ForegroundColor Green
                 if ($output) {
                     $output | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
                 }
+            } elseif (-not $result.Success -and $result.Output) {
+                Write-Host "  [$($result.Duration)]" -ForegroundColor DarkGray
+                $result.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
             } else {
-                Write-Host "  Status: FAILED (exit code: $exitCode)" -ForegroundColor Red
-                if ($output) {
-                    $output | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
-                }
+                Write-Host "  Status: ERROR [$($result.Duration)] - $($result.Output)" -ForegroundColor Red
             }
-        } catch {
-            Write-Host "  Status: ERROR - $($_.Exception.Message)" -ForegroundColor Red
-            $result.Output = $_.Exception.Message
+
+            $allResults += [PSCustomObject]$result
         }
-        
-        $allResults += [PSCustomObject]$result
     }
 }
 
 # --- Summary ---
+$stopwatch.Stop()
+$elapsed = $stopwatch.Elapsed
 Write-Host "`n=== Summary ===" -ForegroundColor Cyan
+Write-Host "Elapsed: $($elapsed.ToString('mm\:ss\.ff'))" -ForegroundColor DarkGray
 
 $successCount = ($allResults | Where-Object { $_.Success }).Count
 $failCount = $allResults.Count - $successCount
