@@ -130,7 +130,8 @@ function Find-Peers {
 
                 # Filter by VMSS family if we know our prefix
                 if ($localVmssPrefix) {
-                    $peerHostname = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
+                    $raw = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
+                    $peerHostname = ($raw | Where-Object { $_ -is [string] } | Select-Object -Last 1)
                     if ($peerHostname -and $peerHostname -match "^${localVmssPrefix}\d{6}$") {
                         $peers += $ip
                         Write-Host "  $ip : $peerHostname ✓" -ForegroundColor DarkGray
@@ -226,7 +227,8 @@ function Test-SshConnectivity {
     Write-Host "Validating SSH connectivity to $($Ips.Count) VMs..." -ForegroundColor Yellow
     $failed = @()
     foreach ($ip in $Ips) {
-        $result = InvokeSsh -Ip $ip -SshUser $SshUser -Command "echo ok" -Timeout $Timeout
+        $raw = InvokeSsh -Ip $ip -SshUser $SshUser -Command "echo ok" -Timeout $Timeout
+        $result = ($raw | Where-Object { $_ -is [string] } | Select-Object -Last 1)
         if ($result -ne "ok") {
             $failed += $ip
         } else {
@@ -246,11 +248,13 @@ function Test-VmssFamily {
     Write-Host "Validating VMSS family membership..." -ForegroundColor Yellow
     $hostnames = @()
     foreach ($ip in $Ips) {
-        $hostname = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
+        $raw = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
+        # Filter out stderr (ErrorRecords) and take the last stdout line
+        $hostname = ($raw | Where-Object { $_ -is [string] } | Select-Object -Last 1)
         if (-not $hostname) {
             throw "ERROR: Could not get hostname from $ip"
         }
-        $hostnames += @{ Ip = $ip; Hostname = $hostname }
+        $hostnames += @{ Ip = $ip; Hostname = $hostname.Trim() }
     }
 
     $prefixes = $hostnames | ForEach-Object {
