@@ -13,9 +13,10 @@
     mcluster.ps1 -Action clean
     mcluster.ps1 -Action update -System garnet -Template cache
     mcluster.ps1 -Action update -System valkey -Template cache -Nodes 16 -NoCluster
+    mcluster.ps1 -Action stage -System garnet -Template cache -Nodes 1 -Clean
 #>
 param(
-    [ValidateSet("start","stop","update","clean")][string]$Action,
+    [ValidateSet("start","stop","update","clean","stage")][string]$Action,
     [string]$System,
     [string]$Template,
     [int]$Nodes = 0,
@@ -25,7 +26,7 @@ param(
 )
 
 if ($Help -or -not $Action) {
-    Write-Host "Usage: mcluster.ps1 -Action <start|stop|update|clean> [-System <valkey|garnet>] [-Template <name>] [-Nodes <n>] [-NoCluster] [-Clean]"
+    Write-Host "Usage: mcluster.ps1 -Action <start|stop|update|clean|stage> [-System <valkey|garnet>] [-Template <name>] [-Nodes <n>] [-NoCluster] [-Clean]"
     Write-Host ""
     Write-Host "Manage valkey/garnet cluster instances: start, stop, clean, or update configs."
     Write-Host ""
@@ -34,6 +35,7 @@ if ($Help -or -not $Action) {
     Write-Host "  stop     Stop running instances (optionally filter by -System, -Nodes)"
     Write-Host "  clean    Remove cluster directories (optionally filter by -System)"
     Write-Host "  update   Pull configs and re-resolve templates (requires -System, -Template)"
+    Write-Host "  stage    Resolve configs and print the commands to start instances manually"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -System      Target system: valkey or garnet"
@@ -249,6 +251,13 @@ switch ($Action) {
         if (-not $Template) { throw "Usage: mcluster.ps1 -Action start -System <system> -Template <template> -Nodes <n>" }
         if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action start -System <system> -Template <template> -Nodes <n>" }
 
+        Write-Host "==== mcluster (start) ====" -ForegroundColor Cyan
+        Write-Host "  System:   $System"
+        Write-Host "  Template: $Template"
+        Write-Host "  Nodes:    $Nodes"
+        Write-Host "  Cluster:  $ClusterMode"
+        Write-Host ""
+
         if ($Clean) {
             Write-Host "Cleaning $System cluster directory..."
             Clean-System -Sys $System
@@ -295,5 +304,36 @@ switch ($Action) {
 
         Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes
         Write-Host "Updated configs in place. Restart instances to apply." -ForegroundColor Yellow
+    }
+
+    "stage" {
+        if (-not $System) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
+        if (-not $Template) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
+        if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
+
+        if ($Clean) {
+            Write-Host "Cleaning $System cluster directory..."
+            Clean-System -Sys $System
+        }
+
+        Pull-Configs
+        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes
+
+        Write-Host ""
+        Write-Host "==== Staged commands (copy & paste to run manually) ====" -ForegroundColor Cyan
+        $clusterDir = if ($System -eq "garnet") { "$HOME/garnet-cluster" } else { "$HOME/valkey-cluster" }
+        for ($i = 0; $i -lt $Nodes; $i++) {
+            $port = $BASE_PORT + $i
+            $dir = "$clusterDir/$port"
+            if ($System -eq "garnet") {
+                $conf = "$dir/garnet.conf"
+                Write-Host "  cd $dir && GarnetServer --config-import-path=$conf" -ForegroundColor Yellow
+            } else {
+                $conf = "$dir/valkey.conf"
+                Write-Host "  cd $dir && valkey-server $conf" -ForegroundColor Yellow
+            }
+        }
+        Write-Host ""
+        Write-Host "Configs resolved. Run the commands above to start instances in the foreground." -ForegroundColor Green
     }
 }
