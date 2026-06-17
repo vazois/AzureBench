@@ -38,6 +38,7 @@ if ($Help) {
     Write-Host "  KeyLength    - Key length in bytes (--keylength)"
     Write-Host "  ValueLength  - Value length in bytes (--valuelength)"
     Write-Host "  BatchSize    - Batch size (--batchsize)"
+    Write-Host "  Op           - Operation type (--op, e.g., GET, SET, MGET)"
     Write-Host "  ClusterBench - Enable cluster bench mode (true/false)"
     Write-Host "  ExtraArgs    - Additional arguments to pass"
     return
@@ -99,6 +100,7 @@ $dbSize       = $config["DbSize"]       ?? ""
 $keyLength    = $config["KeyLength"]    ?? ""
 $valueLength  = $config["ValueLength"]  ?? ""
 $batchSize    = $config["BatchSize"]    ?? ""
+$op           = $config["Op"]           ?? ""
 $clusterBench = $config["ClusterBench"] ?? "true"
 $extraArgs    = $config["ExtraArgs"]    ?? ""
 
@@ -146,6 +148,7 @@ if ($dbSize)       { $benchCmd += " --dbsize $dbSize" }
 if ($keyLength)    { $benchCmd += " --keylength $keyLength" }
 if ($valueLength)  { $benchCmd += " --valuelength $valueLength" }
 if ($batchSize)    { $benchCmd += " --batchsize $batchSize" }
+if ($op)           { $benchCmd += " --op $op" }
 if ($clusterBench -eq "true") {
     $benchCmd += " --cluster-bench"
 }
