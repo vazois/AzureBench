@@ -10,11 +10,13 @@ param networkSecurityGroupName string
 param virtualNetworkName string
 param subnetName string
 param accSubnetName string
+param clientSubnetName string
 param proximityGroupName string
 
 var addressPrefix = '10.5.0.0/16'
 var subnetAddressPrefix = '10.5.0.0/24'
 var accSubnetAddressPrefix = '10.5.1.0/24'
+var clientSubnetAddressPrefix = '10.5.2.0/24'
 
 // Network Security Group — shared by both subnets
 resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
@@ -89,6 +91,15 @@ resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
           networkSecurityGroup: { id: nsg.id }
         }
       }
+      {
+        name: clientSubnetName
+        properties: {
+          addressPrefix: clientSubnetAddressPrefix
+          privateEndpointNetworkPolicies: 'Enabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          networkSecurityGroup: { id: nsg.id }
+        }
+      }
     ]
   }
 }
@@ -106,4 +117,5 @@ output nsgId string = nsg.id
 output vnetName string = vnet.name
 output subnetName string = subnetName
 output accSubnetName string = accSubnetName
+output clientSubnetName string = clientSubnetName
 output proximityId string = prg.id

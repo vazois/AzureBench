@@ -3,11 +3,19 @@ param location string
 param nsgId string
 param subnetName string
 param accSubnetName string
+param clientSubnetName string
 param proximityId string
 param vnetName string
 
 param vmssName string
 param instanceCount int
+
+@description('Role of this VMSS. Server uses accSubnet (10.5.1.X), client uses clientSubnet (10.5.2.X).')
+@allowed([
+  'server'
+  'client'
+])
+param vmssRole string
 
 @allowed([
   'linux'
@@ -204,6 +212,7 @@ var dnsLabelPrefix = vmssName
 var zones = ['1']
 var nicName = '${vmssName}-nic'
 var accNicName = '${vmssName}-acc-nic'
+var dataSubnetName = vmssRole == 'server' ? accSubnetName : clientSubnetName
 
 var ipTagsProfile = {
   ipTagType: 'FirstPartyUsage'
@@ -265,7 +274,7 @@ var networkProfileConfig = {
             name: 'ipconfig2'
             properties: {
               subnet: {
-                id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, accSubnetName)
+                id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, dataSubnetName)
               }
             }
           }

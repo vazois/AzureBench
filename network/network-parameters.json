@@ -17,6 +17,9 @@
         "accSubnetName": {
             "value": "garnet-acc-subnet"
         },
+        "clientSubnetName": {
+            "value": "garnet-client-subnet"
+        },
         "proximityGroupName": {
             "value": "garnet-pg"
         }

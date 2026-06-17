@@ -18,7 +18,17 @@ Automated deployment of benchmarking environments on Azure using VMSS (Virtual M
 .\deploy-network-resources.ps1
 ```
 
-Creates NSGs, VNet (with two subnets), and a proximity placement group. Auto-generates `vmss-parameters.json` with resource IDs.
+Creates NSG, VNet, and a proximity placement group. Auto-generates `vmss-parameters.json` with resource IDs.
+
+The VNet contains three subnets:
+
+| Subnet | Prefix | Purpose |
+|--------|--------|---------|
+| `garnet-subnet` | 10.5.0.0/24 | Management — public IPs, SSH access from corpnet |
+| `garnet-acc-subnet` | 10.5.1.0/24 | Server data plane — accelerated networking for server VMSS |
+| `garnet-client-subnet` | 10.5.2.0/24 | Client data plane — accelerated networking for client/benchmark VMSS |
+
+When deploying a VMSS, use `vmssRole=server` (default) to attach to 10.5.1.X or `vmssRole=client` for 10.5.2.X.
 
 ### 3. Configure SSH Keys and Key Vault
 
@@ -66,23 +76,25 @@ Vault names are auto-generated as `kv-{yyyyMMddHHmmss}` to avoid global name col
 
 ### 4. Deploy VMSS
 
-Two VMSS groups are required — one for **servers** (running the storage system under test) and one for **clients** (running the benchmark workload).
+Two VMSS groups are required — one for **servers** (running the storage system under test) and one for **clients** (running the benchmark workload). The deployment will prompt for `vmssRole` to assign the correct data subnet:
 
 ```powershell
-# Server VMSS
+# Server VMSS (10.5.1.X data plane)
 az deployment group create `
   --resource-group vazois-garnet `
   --template-file vmss.bicep `
   --parameters @vmss-parameters.json `
-  --parameters vmssName=server instanceCount=<n> vmSKU=<sku>
+  --parameters vmssName=server instanceCount=<n> vmssRole=server
 
-# Client VMSS (for running benchmarks)
+# Client VMSS (10.5.2.X data plane)
 az deployment group create `
   --resource-group vazois-garnet `
   --template-file vmss.bicep `
   --parameters @vmss-parameters.json `
-  --parameters vmssName=client instanceCount=<n> vmSKU=<sku>
+  --parameters vmssName=client instanceCount=<n> vmssRole=client
 ```
+
+> **Note:** `vmssRole` is a required parameter with no default. If not passed inline, the CLI will prompt you to choose between `server` and `client`.
 
 VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-installed.
 

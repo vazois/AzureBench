@@ -102,6 +102,7 @@ $nsgId = $outputs.nsgId.value
 $vnetName = $outputs.vnetName.value
 $subnetName = $outputs.subnetName.value
 $accSubnetName = $outputs.accSubnetName.value
+$clientSubnetName = $outputs.clientSubnetName.value
 $proximityId = $outputs.proximityId.value
 $location = ($outputs.PSObject.Properties | Where-Object { $_.Name -eq 'location' })?.Value
 if (-not $location) {
@@ -109,24 +110,26 @@ if (-not $location) {
     $location = (az group show --name $rg --query location -o tsv)
 }
 
-Write-Host "  nsgId        : $nsgId"
-Write-Host "  vnetName     : $vnetName"
-Write-Host "  subnetName   : $subnetName"
-Write-Host "  accSubnetName: $accSubnetName"
-Write-Host "  proximityId  : $proximityId"
-Write-Host "  location     : $location"
+Write-Host "  nsgId           : $nsgId"
+Write-Host "  vnetName        : $vnetName"
+Write-Host "  subnetName      : $subnetName"
+Write-Host "  accSubnetName   : $accSubnetName"
+Write-Host "  clientSubnetName: $clientSubnetName"
+Write-Host "  proximityId     : $proximityId"
+Write-Host "  location        : $location"
 
 # Generate vmss-parameters.json
 $vmssParams = @{
     '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
     contentVersion = '1.0.0.0'
     parameters     = @{
-        location      = @{ value = $location }
-        subnetName    = @{ value = $subnetName }
-        accSubnetName = @{ value = $accSubnetName }
-        nsgId         = @{ value = $nsgId }
-        proximityId   = @{ value = $proximityId }
-        vnetName      = @{ value = $vnetName }
+        location         = @{ value = $location }
+        subnetName       = @{ value = $subnetName }
+        accSubnetName    = @{ value = $accSubnetName }
+        clientSubnetName = @{ value = $clientSubnetName }
+        nsgId            = @{ value = $nsgId }
+        proximityId      = @{ value = $proximityId }
+        vnetName         = @{ value = $vnetName }
     }
 }
 
