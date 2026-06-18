@@ -27,8 +27,8 @@ build_valkey_redis() {
   if [ -n "$BRANCH" ]; then
     echo "==== Checking out $SYSTEM $BRANCH ===="
     sudo -u $DEPLOY_USER git fetch --tags
-    sudo -u $DEPLOY_USER git checkout "$BRANCH"
-    sudo -u $DEPLOY_USER git reset --hard "$BRANCH"
+    sudo -u $DEPLOY_USER git checkout "$BRANCH" --
+    sudo -u $DEPLOY_USER git reset --hard "$BRANCH" --
   fi
 
   make distclean 2>/dev/null || true
@@ -58,8 +58,8 @@ build_garnet() {
   if [ -n "$BRANCH" ]; then
     echo "==== Checking out $BRANCH ===="
     sudo -u $DEPLOY_USER git fetch --all --tags
-    sudo -u $DEPLOY_USER git checkout "$BRANCH"
-    sudo -u $DEPLOY_USER git reset --hard "$BRANCH"
+    sudo -u $DEPLOY_USER git checkout "$BRANCH" --
+    sudo -u $DEPLOY_USER git reset --hard "$BRANCH" --
   fi
 
   ARCH=$(uname -m)
@@ -91,8 +91,8 @@ build_memtier() {
   if [ -n "$BRANCH" ]; then
     echo "==== Checking out memtier $BRANCH ===="
     sudo -u $DEPLOY_USER git fetch --tags
-    sudo -u $DEPLOY_USER git checkout "$BRANCH"
-    sudo -u $DEPLOY_USER git reset --hard "$BRANCH"
+    sudo -u $DEPLOY_USER git checkout "$BRANCH" --
+    sudo -u $DEPLOY_USER git reset --hard "$BRANCH" --
   fi
 
   echo "==== Building memtier_benchmark ===="
@@ -115,8 +115,8 @@ build_resp_bench() {
   if [ -n "$BRANCH" ]; then
     echo "==== Checking out $BRANCH ===="
     sudo -u $DEPLOY_USER git fetch --all
-    sudo -u $DEPLOY_USER git checkout "$BRANCH"
-    sudo -u $DEPLOY_USER git reset --hard "$BRANCH"
+    sudo -u $DEPLOY_USER git checkout "$BRANCH" --
+    sudo -u $DEPLOY_USER git reset --hard "$BRANCH" --
   fi
 
   ARCH=$(uname -m)

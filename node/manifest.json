@@ -1,4 +1,8 @@
 {
+  "vars": {
+    "serverBranch": "main",
+    "clientBranch": "vazois/cluster-bench"
+  },
   "scripts": [
     { "src": "deploy/config.env",          "dst": "/opt/deploy-actions/config.env",          "mode": "644" },
     { "src": "deploy/install-dotnet.sh",   "dst": "/opt/deploy-actions/install-dotnet.sh",   "mode": "755" },
@@ -24,7 +28,7 @@
     { "run": "setup-cluster-dir.sh", "sudo": false, "args": "valkey" },
     { "run": "setup-cluster-dir.sh", "sudo": false, "args": "garnet" },
     { "run": "build.sh",             "sudo": true,  "args": "valkey 9.0" },
-    { "run": "build.sh",             "sudo": true,  "args": "garnet" },
-    { "run": "build.sh",             "sudo": true,  "args": "resp-bench vazois/cluster-bench" }
+    { "run": "build.sh",             "sudo": true,  "args": "garnet ${serverBranch}" },
+    { "run": "build.sh",             "sudo": true,  "args": "resp-bench ${clientBranch}" }
   ]
 }

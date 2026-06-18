@@ -84,14 +84,29 @@ if ($Run -or $RunOnly) {
         return
     }
 
+    # Build variable lookup from the vars section
+    $vars = @{}
+    if ($entries.PSObject.Properties['vars']) {
+        $entries.vars.PSObject.Properties | ForEach-Object { $vars[$_.Name] = $_.Value }
+        Write-Host ""
+        Write-Host "Variables:" -ForegroundColor DarkGray
+        $vars.GetEnumerator() | ForEach-Object { Write-Host "  $($_.Key) = $($_.Value)" -ForegroundColor DarkGray }
+    }
+
     Write-Host ""
     Write-Host "Executing runcmd from manifest..."
 
     foreach ($cmd in $entries.runcmd) {
         $scriptName = $cmd.run
         $useSudo = $cmd.sudo
-        $args = $cmd.args
+        $cmdArgs = $cmd.args
         $background = if ($cmd.PSObject.Properties['background']) { $cmd.background } else { $false }
+
+        # Resolve ${varName} placeholders in args
+        foreach ($key in $vars.Keys) {
+            $pattern = [regex]::Escape("`${$key}")
+            $cmdArgs = $cmdArgs -replace $pattern, $vars[$key]
+        }
 
         # Resolve script path from the scripts section by matching filename
         $scriptEntry = $entries.scripts | Where-Object { $_.src -like "*$scriptName" } | Select-Object -First 1
@@ -101,7 +116,7 @@ if ($Run -or $RunOnly) {
         }
 
         $scriptPath = $scriptEntry.dst
-        $runCmd = if ($useSudo) { "sudo $scriptPath $args" } else { "$scriptPath $args" }
+        $runCmd = if ($useSudo) { "sudo $scriptPath $cmdArgs" } else { "$scriptPath $cmdArgs" }
 
         Write-Host "  -> $runCmd"
         if ($background) {

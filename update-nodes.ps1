@@ -249,6 +249,14 @@ function Get-SshCommand {
 
             $buildArgs = $buildEntry.args
 
+            # Resolve ${varName} placeholders from the vars section
+            if ($nodeManifest.PSObject.Properties['vars']) {
+                foreach ($prop in $nodeManifest.vars.PSObject.Properties) {
+                    $pattern = [regex]::Escape("`${$($prop.Name)}")
+                    $buildArgs = $buildArgs -replace $pattern, $prop.Value
+                }
+            }
+
             # Map system to repo (resp-bench is built from garnet)
             $repoName = switch ($System) {
                 'resp-bench' { 'garnet' }  # resp-bench is part of garnet repo
