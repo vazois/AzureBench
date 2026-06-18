@@ -32,10 +32,9 @@ The VNet contains three subnets:
 | Subnet | Prefix | Purpose |
 |--------|--------|---------|
 | `garnet-subnet` | 10.5.0.0/24 | Management — public IPs, SSH access from corpnet |
-| `garnet-acc-subnet` | 10.5.1.0/24 | Server data plane — accelerated networking for server VMSS |
-| `garnet-client-subnet` | 10.5.2.0/24 | Client data plane — accelerated networking for client/benchmark VMSS |
+| `garnet-acc-subnet` | 10.5.1.0/24 | Data plane — accelerated networking for all VMSS |
 
-When deploying a VMSS, use `vmssRole=server` (default) to attach to 10.5.1.X or `vmssRole=client` for 10.5.2.X.
+Both server and client VMSS share the accelerated networking subnet. Peer discovery uses hostname prefixes to distinguish VMSS membership.
 
 ### 3. Configure SSH Keys and Key Vault
 
@@ -83,29 +82,44 @@ Vault names are auto-generated as `kv-{yyyyMMddHHmmss}` to avoid global name col
 
 ### 4. Deploy VMSS
 
-Two VMSS groups are required — one for **servers** (running the storage system under test) and one for **clients** (running the benchmark workload). The deployment will prompt for `vmssRole` to assign the correct data subnet:
+Two VMSS groups are required — one for **servers** (running the storage system under test) and one for **clients** (running the benchmark workload):
 
 ```powershell
-# Server VMSS (10.5.1.X data plane)
+# Server VMSS
 az deployment group create `
   --resource-group vazois-garnet `
   --template-file vmss.bicep `
   --parameters @vmss-parameters.json `
-  --parameters vmssName=server instanceCount=<n> vmssRole=server
+  --parameters vmssName=server instanceCount=<n>
 
-# Client VMSS (10.5.2.X data plane)
+# Client VMSS
 az deployment group create `
   --resource-group vazois-garnet `
   --template-file vmss.bicep `
   --parameters @vmss-parameters.json `
-  --parameters vmssName=client instanceCount=<n> vmssRole=client
+  --parameters vmssName=client instanceCount=<n>
 ```
-
-> **Note:** `vmssRole` is a required parameter with no default. If not passed inline, the CLI will prompt you to choose between `server` and `client`.
 
 VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-installed.
 
-### 5. Run Benchmarks
+### 5. Manage Cluster
+
+Start or stop the storage cluster on server VMs. Reads connection info from `benchmark/bench.conf`.
+
+```powershell
+# Start a 2-instance-per-node valkey cache cluster (clean deploy)
+.\cluster.ps1 -Action start -System valkey -Template cache -ICount 2 -Clean
+
+# Start garnet with replication (no cluster mode)
+.\cluster.ps1 -Action start -System garnet -Template cache-replication -ICount 1 -NoCluster
+
+# Stop the cluster
+.\cluster.ps1 -Action stop -System valkey -ICount 2
+```
+
+The `start` action automatically starts instances and forms the cluster in one step. Use `-Clean` to wipe data directories before starting.
+
+### 6. Run Benchmarks
 
 The `benchmark/` folder contains the benchmark launcher and its configuration:
 
@@ -121,17 +135,20 @@ The `benchmark/` folder contains the benchmark launcher and its configuration:
 # SSH connection
 SshUser=guser
 SshHost=[vm0.myclient.southcentralus.cloudapp.azure.com]
-InstancePerHost=12   # number of VM instances (vm0..vm11)
-Multiplier=1         # benchmark instances per VM
+HostCount=12            # number of VM instances (vm0..vm11)
+Multiplier=1            # benchmark instances per VM
 
 # Benchmark parameters
-Host=10.5.1.4        # target server IP
+Host=10.5.1.4           # target server IP
 Port=7000
 Threads=16
 Runtime=60
 ClusterBench=true
 
-# Optional
+# Optional workload tuning
+# Op=SET                # operation type (GET, SET, MGET, MSET)
+# Pool=false            # connection pool per worker
+# Pipeline=false        # pipelined requests
 # DbSize=1000000
 # KeyLength=16
 # ValueLength=128
@@ -144,16 +161,25 @@ SSH keys are resolved automatically from `security/manifest.json` (falls back to
 #### Running
 
 ```powershell
-.\benchmark\resp-bench.ps1                          # uses default bench.conf
-.\benchmark\resp-bench.ps1 -ConfigFile .\custom.conf # custom config
+.\benchmark\resp-bench.ps1                                    # inline parallel, totals only
+.\benchmark\resp-bench.ps1 -Detail                            # show per-instance results
+.\benchmark\resp-bench.ps1 -Background                        # spawn Windows Terminal panes
+.\benchmark\resp-bench.ps1 -ConfigFile .\custom.conf -Detail  # custom config
 ```
 
+| Flag | Behavior |
+|------|----------|
+| *(none)* | Inline parallel execution, prints TOTAL only |
+| `-Detail` | Adds per-instance breakdown to aggregation output |
+| `-Background` | Spawns Windows Terminal tabs/panes (2 per tab) for visual inspection |
+
+Before running benchmarks, the script probes the server and displays system info (name, version, OS, CPU count, port, uptime).
+
 The script:
-1. Opens Windows Terminal tabs/panes — one per SSH session (2 panes per tab)
-2. Each pane SSHs into a client VM and runs `Resp.benchmark` with the configured parameters
-3. Output is tee'd to timestamped log files under `benchmark/results/<yyyyMMdd-HHmmss>/`
-4. Polls log files until all instances report `Total throughput:` (or a timeout of `runtime + 120s`)
-5. Aggregates results across all instances, printing per-instance and total throughput:
+1. SSHs into each client VM and runs `Resp.benchmark` with the configured parameters
+2. Output is tee'd to timestamped log files under `benchmark/results/<yyyyMMdd-HHmmss>/`
+3. Polls log files until all instances report `Total throughput:` (or a timeout of `runtime + 120s`)
+4. Aggregates results across all instances:
 
 ```
 === Aggregate Results (20260616-164500) ===
@@ -163,7 +189,7 @@ The script:
   TOTAL              2,222.21 Kops/sec |  0.830 GB/s data |  0.960 GB/s wire
 ```
 
-### 6. Update Nodes (Refresh Repos, Rebuild Systems)
+### 7. Update Nodes (Refresh Repos, Rebuild Systems)
 
 SSH into VMSS instances to refresh repositories, rebuild systems, or re-run initialization workflows.
 
@@ -199,12 +225,12 @@ SSH into VMSS instances to refresh repositories, rebuild systems, or re-run init
 ```
 
 **Notes:**
-- Rebuild arguments (e.g., branch names, build flags) are read from `node/manifest.json` to ensure consistency
+- Build branches are configured in `node/manifest.json` under the `vars` section (e.g., `serverBranch`, `clientBranch`) and automatically substituted during rebuild
 - Supports multiple VMSS: `-VmssName server,client` or `-VmssName all`
 - SSH keys automatically resolved from `security/manifest.json` (userKeys)
 - Results reported per-instance with success/failure summary
 
-### 7. Update Keys on Live VMSS (Optional)
+### 8. Update Keys on Live VMSS (Optional)
 
 ```powershell
 .\deploy-keys.ps1 -Action update -VmssName <name>
@@ -221,6 +247,7 @@ Pushes new SSH keys to running VMs without redeployment.
 | `security/` | SSH key manifest, public keys, and Key Vault template |
 | `node/` | Node-side scripts (deploy, cluster, system, benchmark) |
 | `benchmark/` | Benchmark launcher, config, and results |
+| `cluster.ps1` | Cluster lifecycle management (start/stop via SSH) |
 | `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `update-nodes.ps1` | SSH-based repo refresh, system rebuild, and initialization |
