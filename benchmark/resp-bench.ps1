@@ -48,6 +48,7 @@ if ($Help) {
     Write-Host "  BatchSize        - Batch size (--batchsize)"
     Write-Host "  Op               - Operation type (--op, e.g., GET, SET, MGET)"
     Write-Host "  ClusterBench     - Enable cluster bench mode (true/false)"
+    Write-Host "  Pool             - Enable connection pooling (true/false, default: true)"
     Write-Host "  ExtraArgs        - Additional arguments to pass"
     return
 }
@@ -113,6 +114,7 @@ $valueLength  = $config["ValueLength"]  ?? ""
 $batchSize    = $config["BatchSize"]    ?? ""
 $op           = $config["Op"]           ?? ""
 $clusterBench = $config["ClusterBench"] ?? "true"
+$pool         = $config["Pool"]         ?? "true"
 $extraArgs    = $config["ExtraArgs"]    ?? ""
 
 # --- Derive host list from base + count ---
@@ -162,6 +164,9 @@ if ($batchSize)    { $benchCmd += " --batchsize $batchSize" }
 if ($op)           { $benchCmd += " --op $op" }
 if ($clusterBench -eq "true") {
     $benchCmd += " --cluster-bench"
+}
+if ($pool -eq "true") {
+    $benchCmd += " --pool"
 }
 if ($extraArgs) {
     $benchCmd += " $extraArgs"
