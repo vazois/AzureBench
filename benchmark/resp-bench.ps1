@@ -437,3 +437,61 @@ foreach ($lf in $logFiles) {
 }
 if ($Detail) { Write-Host ("  " + ("-" * 70)) }
 Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire" -f "TOTAL".PadRight($maxHostLen), $totalKops, $totalData, $totalWire) -ForegroundColor Green
+
+# --- Probe DBSIZE per shard ---
+Write-Host ""
+Write-Host "Probing database size..." -ForegroundColor DarkGray
+$dbSizeTotal = 0
+$shardResults = @()
+
+if ($clusterBench -eq "true") {
+    $clusterNodesRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "redis-cli -h $benchHost -p $benchPort cluster nodes 2>/dev/null" 2>&1
+    $shardEndpoints = @()
+    foreach ($line in $clusterNodesRaw) {
+        $lineStr = "$line".Trim()
+        if ($lineStr -match 'master' -and $lineStr -notmatch 'fail') {
+            if ($lineStr -match '(\d+\.\d+\.\d+\.\d+):(\d+)') {
+                $shardEndpoints += @{ Host = $Matches[1]; Port = $Matches[2] }
+            }
+        }
+    }
+} else {
+    $shardEndpoints = @(@{ Host = $benchHost; Port = $benchPort })
+}
+
+if ($shardEndpoints.Count -gt 0) {
+    $dbSizeCmds = ($shardEndpoints | ForEach-Object {
+        "echo `"SHARD $($_.Host):$($_.Port)`" && redis-cli -h $($_.Host) -p $($_.Port) dbsize 2>/dev/null"
+    }) -join " && "
+    $dbSizeRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "$dbSizeCmds" 2>&1
+
+    $currentShard = ""
+    foreach ($line in $dbSizeRaw) {
+        $lineStr = "$line".Trim()
+        if ($lineStr -match '^SHARD\s+(.+)$') {
+            $currentShard = $Matches[1]
+        } elseif ($lineStr -match '(\d+)' -and $currentShard) {
+            $keys = [long]$Matches[1]
+            $shardResults += [PSCustomObject]@{ Shard = $currentShard; Keys = $keys }
+            $dbSizeTotal += $keys
+            $currentShard = ""
+        }
+    }
+
+    if ($Detail) {
+        Write-Host ""
+        Write-Host "=== Database Size ===" -ForegroundColor Cyan
+        foreach ($s in $shardResults) {
+            Write-Host ("  {0}  {1,12:N0} keys" -f $s.Shard.PadRight(22), $s.Keys)
+        }
+        if ($shardResults.Count -gt 1) {
+            Write-Host ("  " + ("-" * 40))
+        }
+        Write-Host ("  {0}  {1,12:N0} keys" -f "TOTAL".PadRight(22), $dbSizeTotal) -ForegroundColor Green
+        Write-Host "=====================" -ForegroundColor Cyan
+    } else {
+        Write-Host "  Database: $($dbSizeTotal.ToString('N0')) keys across $($shardResults.Count) shard(s)" -ForegroundColor Cyan
+    }
+} else {
+    Write-Host "  WARNING: No shard endpoints discovered" -ForegroundColor Yellow
+}
