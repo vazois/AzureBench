@@ -106,25 +106,30 @@ if ($Action -eq 'rebuild' -and -not $System) {
 # --- VMSS Discovery & Selection ---
 Write-Host "`n=== Discovering VMSS in resource group '$rg' ===" -ForegroundColor Cyan
 
-$allVmssJson = az vmss list --resource-group $rg --query '[].name' -o json 2>$null
+$allVmssJson = az vmss list --resource-group $rg --query '[].{name:name, state:provisioningState}' -o json 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $allVmssJson) {
     Write-Error "Failed to list VMSS in resource group '$rg'. Ensure the resource group exists and you're logged in."
     exit 1
 }
 
-$allVmss = $allVmssJson | ConvertFrom-Json
-if ($allVmss.Count -eq 0) {
+$allVmssInfo = $allVmssJson | ConvertFrom-Json
+if ($allVmssInfo.Count -eq 0) {
     Write-Error "No VMSS found in resource group '$rg'."
     exit 1
 }
+
+$allVmss = $allVmssInfo | ForEach-Object { $_.name }
 
 $targetVmss = @()
 
 if (-not $VmssName) {
     # Prompt user to select
     Write-Host "`nAvailable VMSS:"
-    for ($i = 0; $i -lt $allVmss.Count; $i++) {
-        Write-Host "  [$i] $($allVmss[$i])"
+    for ($i = 0; $i -lt $allVmssInfo.Count; $i++) {
+        $state = $allVmssInfo[$i].state
+        $stateColor = if ($state -eq 'Succeeded') { 'Green' } else { 'Yellow' }
+        Write-Host "  [$i] $($allVmssInfo[$i].name) " -NoNewline
+        Write-Host "($state)" -ForegroundColor $stateColor
     }
     Write-Host ""
     $selection = Read-Host "Select VMSS (comma-separated indices/names, or 'all')"

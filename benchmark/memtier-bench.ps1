@@ -32,7 +32,7 @@ if ($Help) {
     Write-Host "Config file keys:"
     Write-Host "  SshUser          - SSH username (default: guser)"
     Write-Host "  SshHost          - Base remote hostname or [host1, host2] array"
-    Write-Host "  InstancePerHost  - Number of VM instances per host"
+    Write-Host "  HostCount        - Number of physical hosts/VMs"
     Write-Host "  Multiplier       - Benchmark instances per VM (default: 1)"
     Write-Host "  Host             - Benchmark target host (-s)"
     Write-Host "  Port             - Benchmark target port (--port)"
@@ -108,7 +108,7 @@ if (Test-Path $manifestPath) {
 # --- Resolve parameters ---
 $sshUser         = $config["SshUser"]         ?? "guser"
 $sshHostBase     = $config["SshHost"]         ?? "vm0.example.com"
-$instancePerHost = [int]($config["InstancePerHost"] ?? "1")
+$hostCount       = [int]($config["HostCount"] ?? $config["InstancePerHost"] ?? "1")
 $multiplier      = [int]($config["Multiplier"] ?? "1")
 $benchHost       = $config["Host"]            ?? "10.5.1.4"
 $benchPort       = $config["Port"]            ?? "6379"
@@ -136,7 +136,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
             $prefix = $Matches[1]
             $startIndex = [int]$Matches[2]
             $domain = $Matches[3]
-            for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
+            for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
                 for ($m = 0; $m -lt $multiplier; $m++) {
                     $sshHosts += "$prefix$i.$domain"
                 }
@@ -155,7 +155,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
         Write-Error "SshHost must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
         exit 1
     }
-    for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
+    for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
         for ($m = 0; $m -lt $multiplier; $m++) {
             $sshHosts += "$prefix$i.$domain"
         }
@@ -172,10 +172,15 @@ if ($clusterFlag) { $benchCmd += " $clusterFlag" }
 # --- Print summary ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-Write-Host "=== Memtier Benchmark Configuration ===" -ForegroundColor Cyan
+Write-Host "=== Instance Configuration ===" -ForegroundColor Cyan
 Write-Host "  SSH Key      : $sshKey"
 Write-Host "  SSH User     : $sshUser"
 Write-Host "  Instances    : $instances ($multiplier x $uniqueHosts hosts)"
+Write-Host "  SkipLoad     : $SkipLoad"
+Write-Host "  Verbose      : $($VerbosePreference -ne 'SilentlyContinue')"
+Write-Host "===============================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "=== Benchmark Configuration ===" -ForegroundColor Cyan
 Write-Host "  Target       : $benchHost`:$benchPort"
 Write-Host "  Threads      : $threads"
 Write-Host "  Clients      : $clients"
@@ -186,9 +191,7 @@ Write-Host "  TestTime     : $testTime"
 Write-Host "  Ratio        : $ratio"
 Write-Host "  KeyPattern   : $keyPattern"
 Write-Host "  Cluster      : $clusterMode"
-Write-Host "  SkipLoad     : $SkipLoad"
-Write-Host "  Verbose      : $($VerbosePreference -ne 'SilentlyContinue')"
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
 # --- SSH options ---

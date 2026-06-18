@@ -36,7 +36,7 @@ if ($Help) {
     Write-Host "  SshKey           - Path to SSH private key"
     Write-Host "  SshUser          - SSH username"
     Write-Host "  SshHost          - Base remote hostname (vm prefix before index)"
-    Write-Host "  InstancePerHost  - Number of VM instances (generates vm0, vm1, ...)"
+    Write-Host "  HostCount        - Number of physical hosts/VMs"
     Write-Host "  Multiplier       - Benchmark instances per VM (default: 1)"
     Write-Host "  Host             - Benchmark target host (--host)"
     Write-Host "  Port             - Benchmark target port (--port)"
@@ -101,7 +101,7 @@ if (Test-Path $manifestPath) {
 }
 $sshUser         = $config["SshUser"]         ?? "guser"
 $sshHostBase     = $config["SshHost"]         ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
-$instancePerHost = [int]($config["InstancePerHost"] ?? "1")
+$hostCount       = [int]($config["HostCount"] ?? $config["InstancePerHost"] ?? "1")
 $multiplier      = [int]($config["Multiplier"] ?? "1")
 $benchHost    = $config["Host"]         ?? "10.5.1.4"
 $benchPort    = $config["Port"]         ?? "7000"
@@ -126,7 +126,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
             $prefix = $Matches[1]
             $startIndex = [int]$Matches[2]
             $domain = $Matches[3]
-            for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
+            for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
                 for ($m = 0; $m -lt $multiplier; $m++) {
                     $sshHosts += "$prefix$i.$domain"
                 }
@@ -146,7 +146,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
         Write-Error "SshHost must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
         exit 1
     }
-    for ($i = $startIndex; $i -lt ($startIndex + $instancePerHost); $i++) {
+    for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
         for ($m = 0; $m -lt $multiplier; $m++) {
             $sshHosts += "$prefix$i.$domain"
         }
@@ -167,19 +167,59 @@ if ($extraArgs) {
     $benchCmd += " $extraArgs"
 }
 
-# --- Print summary ---
+# --- Probe benchmark config by running a 1s test on one host ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-$clientsPerShard = [int]$threads * $instances
-Write-Host "=== Benchmark Configuration ===" -ForegroundColor Cyan
+$probeHost = $sshHosts | Select-Object -First 1
+$probeOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
+# Replace runtime in the command for a quick probe
+$probeCmd = $benchCmd -replace '--runtime\s+\d+', '--runtime 1'
+Write-Host "Probing benchmark configuration..." -ForegroundColor DarkGray
+$probeOutput = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" $probeCmd 2>&1
+$configBlock = @()
+$inConfig = $false
+foreach ($line in $probeOutput) {
+    $lineStr = "$line"
+    if ($lineStr -match '={3,}.*[Cc]onfiguration') {
+        $inConfig = $true
+        $configBlock += $lineStr
+    } elseif ($inConfig -and $lineStr -match '^={3,}\s*$') {
+        $configBlock += $lineStr
+        break
+    } elseif ($inConfig) {
+        $configBlock += $lineStr
+    }
+}
+if ($configBlock.Count -gt 0) {
+    Write-Host ""
+    # Fix runtime back to actual value (probe uses --runtime 1)
+    $configBlock | ForEach-Object {
+        $line = $_ -replace 'Runtime:\s*1s', "Runtime: ${runtime}s"
+        Write-Host $line -ForegroundColor Cyan
+    }
+    Write-Host ""
+    # Extract workers per instance from config block
+    $workersPerInstance = 0
+    $configBlock | ForEach-Object {
+        if ($_ -match 'Workers:\s*(\d+)') {
+            $workersPerInstance = [int]$Matches[1]
+        }
+    }
+} else {
+    Write-Host "=== Benchmark Configuration ===" -ForegroundColor Cyan
+    Write-Host "  Command    : $benchCmd"
+    Write-Host "===============================" -ForegroundColor Cyan
+    Write-Host ""
+    $workersPerInstance = [int]$threads
+}
+
+# --- Print instance configuration ---
+$totalWorkers = $workersPerInstance * $instances
+Write-Host "=== Instance Configuration ===" -ForegroundColor Cyan
 Write-Host "  SSH Key    : $sshKey"
 Write-Host "  SSH User   : $sshUser"
 Write-Host "  Instances  : $instances ($multiplier x $uniqueHosts hosts)"
-Write-Host "  Clients    : $clientsPerShard per shard ($threads threads x $instances instances)"
-# foreach ($h in ($sshHosts | Select-Object -Unique)) {
-#     Write-Host "    $h"
-# }
-Write-Host "  Command    : $benchCmd"
+Write-Host "  Workers    : $totalWorkers total ($workersPerInstance per instance x $instances instances)"
 Write-Host "===============================" -ForegroundColor Cyan
 Write-Host ""
 
