@@ -20,6 +20,8 @@
 #>
 param(
     [string]$ConfigFile = "$PSScriptRoot\bench.conf",
+    [switch]$Background,
+    [switch]$Detail,
     [switch]$Help
 )
 
@@ -47,6 +49,7 @@ if ($Help) {
     Write-Host "  ValueLength      - Value length in bytes (--valuelength)"
     Write-Host "  BatchSize        - Batch size (--batchsize)"
     Write-Host "  Op               - Operation type (--op, e.g., GET, SET, MGET)"
+    Write-Host "  Pipeline         - Enable pipeline mode (true/false)"
     Write-Host "  ClusterBench     - Enable cluster bench mode (true/false)"
     Write-Host "  Pool             - Enable connection pooling (true/false, default: true)"
     Write-Host "  ExtraArgs        - Additional arguments to pass"
@@ -113,6 +116,7 @@ $keyLength    = $config["KeyLength"]    ?? ""
 $valueLength  = $config["ValueLength"]  ?? ""
 $batchSize    = $config["BatchSize"]    ?? ""
 $op           = $config["Op"]           ?? ""
+$pipeline     = $config["Pipeline"]     ?? ""
 $clusterBench = $config["ClusterBench"] ?? "true"
 $pool         = $config["Pool"]         ?? "true"
 $extraArgs    = $config["ExtraArgs"]    ?? ""
@@ -162,6 +166,9 @@ if ($keyLength)    { $benchCmd += " --keylength $keyLength" }
 if ($valueLength)  { $benchCmd += " --valuelength $valueLength" }
 if ($batchSize)    { $benchCmd += " --batchsize $batchSize" }
 if ($op)           { $benchCmd += " --op $op" }
+if ($pipeline -eq "true") {
+    $benchCmd += " --pipeline"
+}
 if ($clusterBench -eq "true") {
     $benchCmd += " --cluster-bench"
 }
@@ -172,11 +179,42 @@ if ($extraArgs) {
     $benchCmd += " $extraArgs"
 }
 
+# --- Probe server info ---
+$probeOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
+$probeHost = $sshHosts | Select-Object -First 1
+Write-Host "Probing server info (${benchHost}:${benchPort})..." -ForegroundColor DarkGray
+$serverInfoRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "redis-cli -h $benchHost -p $benchPort info server 2>/dev/null" 2>&1
+$serverCpuRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "ssh -o StrictHostKeyChecking=no ${sshUser}@${benchHost} nproc 2>/dev/null" 2>&1
+$serverCpuCount = ($serverCpuRaw | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
+$serverInfo = @{}
+foreach ($line in $serverInfoRaw) {
+    $lineStr = "$line"
+    if ($lineStr -match '^(\w+):(.+)$') {
+        $serverInfo[$Matches[1]] = $Matches[2].Trim()
+    }
+}
+if ($serverInfo.Count -gt 0) {
+    $serverName = $serverInfo["server_name"] ?? $serverInfo["redis_version"] ?? "unknown"
+    $serverVersion = if ($serverInfo["valkey_version"]) { $serverInfo["valkey_version"] }
+                     elseif ($serverInfo["redis_version"]) { $serverInfo["redis_version"] }
+                     else { "?" }
+    Write-Host ""
+    Write-Host "=== Server Info ===" -ForegroundColor Cyan
+    Write-Host "  Server : $serverName $serverVersion"
+    if ($serverCpuCount) { Write-Host "  CPUs   : $serverCpuCount" }
+    if ($serverInfo["os"]) { Write-Host "  OS     : $($serverInfo["os"])" }
+    if ($serverInfo["tcp_port"]) { Write-Host "  Port   : $($serverInfo["tcp_port"])" }
+    if ($serverInfo["uptime_in_seconds"]) { Write-Host "  Uptime : $($serverInfo["uptime_in_seconds"])s" }
+    Write-Host "===================" -ForegroundColor Cyan
+    Write-Host ""
+} else {
+    Write-Host "  WARNING: Could not retrieve server info from ${benchHost}:${benchPort}" -ForegroundColor Yellow
+    Write-Host ""
+}
+
 # --- Probe benchmark config by running a 1s test on one host ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-$probeHost = $sshHosts | Select-Object -First 1
-$probeOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
 # Replace runtime in the command for a quick probe
 $probeCmd = $benchCmd -replace '--runtime\s+\d+', '--runtime 1'
 Write-Host "Probing benchmark configuration..." -ForegroundColor DarkGray
@@ -244,10 +282,9 @@ Write-Host ""
 
 # SSH options for inline mode
 $sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
-$isVerbose = $VerbosePreference -ne 'SilentlyContinue'
 
-if ($isVerbose) {
-    # Verbose mode: spawn Windows Terminal panes for visual inspection
+if ($Background) {
+    # Background mode: spawn Windows Terminal panes for visual inspection
     Write-Host "Launching $($sshHosts.Count) pane(s) in Windows Terminal..." -ForegroundColor Yellow
 
     $maxPerTab = 2
@@ -389,10 +426,14 @@ foreach ($lf in $logFiles) {
         $totalKops += $kops
         $totalData += $data
         $totalWire += $wire
-        Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire" -f $name.PadRight($maxHostLen), $kops, $data, $wire)
+        if ($Detail) {
+            Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire" -f $name.PadRight($maxHostLen), $kops, $data, $wire)
+        }
     } else {
-        Write-Host "  $($name.PadRight($maxHostLen))  (no results)" -ForegroundColor DarkGray
+        if ($Detail) {
+            Write-Host "  $($name.PadRight($maxHostLen))  (no results)" -ForegroundColor DarkGray
+        }
     }
 }
-Write-Host ("  " + ("-" * 70))
+if ($Detail) { Write-Host ("  " + ("-" * 70)) }
 Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire" -f "TOTAL".PadRight($maxHostLen), $totalKops, $totalData, $totalWire) -ForegroundColor Green
