@@ -112,7 +112,7 @@ function Find-Peers {
 
     # Get local VMSS prefix to filter out VMs from other scale sets
     $localHostname = hostname
-    $localVmssPrefix = if ($localHostname -match '^(.+?)\d{6}$') { $Matches[1] } else { "" }
+    $localVmssPrefix = if ($localHostname -match '^(.+?)[0-9A-Z]{6}$') { $Matches[1] } else { "" }
     if ($localVmssPrefix) {
         Write-Host "  Local VMSS prefix: $localVmssPrefix" -ForegroundColor DarkGray
     }
@@ -132,7 +132,7 @@ function Find-Peers {
                 if ($localVmssPrefix) {
                     $raw = InvokeSsh -Ip $ip -SshUser $SshUser -Command "hostname" -Timeout $Timeout
                     $peerHostname = ($raw | Where-Object { $_ -is [string] } | Select-Object -Last 1)
-                    if ($peerHostname -and $peerHostname -match "^${localVmssPrefix}\d{6}$") {
+                    if ($peerHostname -and $peerHostname -match "^${localVmssPrefix}[0-9A-Z]{6}$") {
                         $peers += $ip
                         Write-Host "  $ip : $peerHostname ✓" -ForegroundColor DarkGray
                     } else {
@@ -258,7 +258,7 @@ function Test-VmssFamily {
     }
 
     $prefixes = $hostnames | ForEach-Object {
-        if ($_.Hostname -match '^(.+?)\d{6}$') { $Matches[1] } else { $_.Hostname }
+        if ($_.Hostname -match '^(.+?)[0-9A-Z]{6}$') { $Matches[1] } else { $_.Hostname }
     } | Sort-Object -Unique
 
     if ($prefixes.Count -ne 1) {
