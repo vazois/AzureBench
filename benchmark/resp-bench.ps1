@@ -215,8 +215,11 @@ if ($serverInfo.Count -gt 0) {
 # --- Probe benchmark config by running a 1s test on one host ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-# Replace runtime in the command for a quick probe
+# Use skipload + GET + small dbsize for fast probe (avoids loading large datasets)
 $probeCmd = $benchCmd -replace '--runtime\s+\d+', '--runtime 1'
+$probeCmd = $probeCmd -replace '--op\s+\S+', '--op GET'
+if ($probeCmd -notmatch '--op') { $probeCmd += ' --op GET' }
+$probeCmd += ' --skipload --dbsize 1'
 Write-Host "Probing benchmark configuration..." -ForegroundColor DarkGray
 $probeOutput = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" $probeCmd 2>&1
 $configBlock = @()
@@ -235,9 +238,14 @@ foreach ($line in $probeOutput) {
 }
 if ($configBlock.Count -gt 0) {
     Write-Host ""
-    # Fix runtime back to actual value (probe uses --runtime 1)
+    # Fix values back to actual (probe uses --runtime 1, --op GET, --skipload, --dbsize 1)
+    $op = $config["Op"] ?? "GET"
+    $actualDbSize = $config["DbSize"] ?? ""
     $configBlock | ForEach-Object {
         $line = $_ -replace 'Runtime:\s*1s', "Runtime: ${runtime}s"
+        $line = $line -replace 'Op:\s*\S+', "Op: $op"
+        $line = $line -replace 'DB Size:\s*\d+', "DB Size: $(if ($actualDbSize) { $actualDbSize } else { '0' })"
+        $line = $line -replace 'Skip Load:\s*\S+', "Skip Load: No"
         Write-Host $line -ForegroundColor Cyan
     }
     Write-Host ""

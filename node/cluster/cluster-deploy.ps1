@@ -118,8 +118,12 @@ function Find-Peers {
     $candidateIps = Get-SubnetIps -Ip $OwnIp -Prefix $Prefix
     Write-Host "  Scanning $($candidateIps.Count) candidate IPs (100ms timeout)..." -ForegroundColor DarkGray
 
-    $peers = @()
+    # Always include self
+    $peers = @($OwnIp)
+    Write-Host "  $OwnIp : self ✓" -ForegroundColor DarkGray
+
     foreach ($ip in $candidateIps) {
+        if ($ip -eq $OwnIp) { continue }  # already included
         try {
             $tcp = [System.Net.Sockets.TcpClient]::new()
             $task = $tcp.ConnectAsync($ip, 22)
@@ -148,11 +152,11 @@ function Find-Peers {
         }
     }
 
-    if ($peers.Count -eq 0) {
-        throw "ERROR: No peers found on subnet."
+    if ($peers.Count -eq 1) {
+        Write-Host "  No other peers found (only self)." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Found $($peers.Count) peer(s) (including self)." -ForegroundColor Green
     }
-
-    Write-Host "  Found $($peers.Count) peer(s)." -ForegroundColor Green
     return $peers
 }
 
