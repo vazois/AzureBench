@@ -420,10 +420,6 @@ function New-Cluster {
     $output = bash -c $cmd 2>&1
     $output | ForEach-Object { Write-Host "  $_" }
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Cluster creation failed (exit code $LASTEXITCODE)"
-    }
-
     # Verify cluster state
     $firstEp = $Endpoints[0] -split ':'
     Write-Host ""
@@ -436,8 +432,33 @@ function New-Cluster {
     Write-Host "  $stateLine"
     Write-Host "  $slotsLine"
 
-    if ($stateLine -match "cluster_state:ok") {
+    # Check if slots are properly assigned
+    $slotsOk = if ($slotsLine -match "cluster_slots_ok:(\d+)") { [int]$Matches[1] } else { 0 }
+
+    if ($slotsOk -lt 16384) {
+        Write-Host "  Slots not fully assigned ($slotsOk/16384), running ADDSLOTSRANGE..." -ForegroundColor Yellow
+        # Assign slot ranges across endpoints (round-robin for multi-node, all to single node)
+        $totalNodes = $Endpoints.Count
+        for ($i = 0; $i -lt $totalNodes; $i++) {
+            $ep = $Endpoints[$i] -split ':'
+            $slotStart = [math]::Floor(16384 * $i / $totalNodes)
+            $slotEnd = [math]::Floor(16384 * ($i + 1) / $totalNodes) - 1
+            bash -c "$verifyCmd -h $($ep[0]) -p $($ep[1]) CLUSTER ADDSLOTSRANGE $slotStart $slotEnd" 2>&1 | Out-Null
+        }
+        # Re-verify
+        Start-Sleep -Seconds 1
+        $clusterInfo = bash -c "$verifyCmd -h $($firstEp[0]) -p $($firstEp[1]) CLUSTER INFO" 2>&1
+        $stateLine = $clusterInfo | Where-Object { $_ -match "cluster_state" }
+        $slotsLine = $clusterInfo | Where-Object { $_ -match "cluster_slots_ok" }
+        $slotsOk = if ($slotsLine -match "cluster_slots_ok:(\d+)") { [int]$Matches[1] } else { 0 }
+        Write-Host "  $stateLine"
+        Write-Host "  $slotsLine"
+    }
+
+    if ($stateLine -match "cluster_state:ok" -and $slotsOk -eq 16384) {
         Write-Host "  Cluster formed successfully ✓" -ForegroundColor Green
+    } elseif ($stateLine -match "cluster_state:ok") {
+        Write-Host "  WARNING: Cluster state ok but only $slotsOk/16384 slots assigned" -ForegroundColor Red
     } else {
         Write-Host "  WARNING: Cluster state is not 'ok'" -ForegroundColor Red
     }
