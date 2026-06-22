@@ -208,28 +208,38 @@ Write-Host "Using SSH key: $sshKey" -ForegroundColor DarkGray
 
 # --- Build SSH Command based on Action ---
 # Git pull strategy: fast-forward only or force reset
-$gitPull = if ($Force) { "git fetch --all && git reset --hard origin/\$(git rev-parse --abbrev-ref HEAD)" } else { "git pull --ff-only" }
+# $branch param is optional; when provided, force uses that explicit branch instead of detecting HEAD
+function Get-GitPull([string]$branch = '') {
+    if ($Force) {
+        $target = if ($branch) { "origin/$branch" } else { 'origin/$(git rev-parse --abbrev-ref HEAD)' }
+        return "git fetch --all && git reset --hard $target"
+    } else {
+        return "git pull --ff-only"
+    }
+}
 
 function Get-SshCommand {
     param([string]$Action, [string]$System)
 
     switch ($Action) {
         'refresh' {
-            # Read repos.txt to get all repo paths
-            $reposFile = Join-Path $scriptDir "node\deploy\repos.txt"
-            if (-not (Test-Path $reposFile)) {
-                Write-Error "repos.txt not found at $reposFile"
+            # Read repos from manifest.json
+            $manifestFile = Join-Path $scriptDir "node\manifest.json"
+            if (-not (Test-Path $manifestFile)) {
+                Write-Error "manifest.json not found at $manifestFile"
+                exit 1
+            }
+            $nodeManifest = Get-Content $manifestFile -Raw | ConvertFrom-Json
+
+            if (-not $nodeManifest.repos) {
+                Write-Error "No repos section in manifest.json"
                 exit 1
             }
 
-            $repoPaths = Get-Content $reposFile | ForEach-Object {
-                if ($_ -match '^\s*$' -or $_ -match '^\s*#') { return }
-                $parts = $_ -split '\|'
-                if ($parts.Count -ge 3) { $parts[2].Trim() }
-            } | Where-Object { $_ }
-
-            $pullCommands = $repoPaths | ForEach-Object {
-                "cd $_ && $gitPull 2>&1 | sed 's/^/[$([System.IO.Path]::GetFileName($_))]: /'"
+            $pullCommands = $nodeManifest.repos | ForEach-Object {
+                $branch = if ($_.branch -is [array]) { $_.branch[0] } else { $_.branch }
+                $pull = Get-GitPull -branch $branch
+                "cd $($_.path) && $pull 2>&1 | sed 's/^/[$($_.name)]: /'"
             }
 
             return $pullCommands -join '; '
@@ -255,34 +265,37 @@ function Get-SshCommand {
 
             $buildArgs = $buildEntry.args
 
-            # Resolve ${varName} placeholders from the vars section
-            if ($nodeManifest.PSObject.Properties['vars']) {
-                foreach ($prop in $nodeManifest.vars.PSObject.Properties) {
-                    $pattern = [regex]::Escape("`${$($prop.Name)}")
-                    $buildArgs = $buildArgs -replace $pattern, $prop.Value
-                }
-            }
-
             # Map system to repo (resp-bench is built from garnet)
             $repoName = switch ($System) {
                 'resp-bench' { 'garnet' }  # resp-bench is part of garnet repo
                 default      { $System }
             }
 
-            # Get repo path from repos.txt
-            $reposFile = Join-Path $scriptDir "node\deploy\repos.txt"
-            $repoPath = Get-Content $reposFile | ForEach-Object {
-                if ($_ -match "/$repoName\.git\|(.+)$" -or $_ -match "/$repoName\|(.+)$") {
-                    return $Matches[1].Trim()
-                }
-            } | Select-Object -First 1
-
-            if (-not $repoPath) {
-                Write-Error "Could not find repo path for '$repoName' in repos.txt"
+            # Get repo entry
+            $repoEntry = $nodeManifest.repos | Where-Object { $_.name -eq $repoName } | Select-Object -First 1
+            if (-not $repoEntry) {
+                Write-Error "Could not find repo '$repoName' in manifest.json repos section"
                 exit 1
             }
 
-            return "cd $repoPath && echo '[git pull]' && $gitPull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
+            # Resolve branch: index into repos[].branch array, or use string directly
+            $branchField = $repoEntry.branch
+            if ($buildEntry.PSObject.Properties['branch'] -and $null -ne $buildEntry.branch -and $branchField -is [array]) {
+                $buildBranch = $branchField[$buildEntry.branch]
+            } elseif ($branchField -is [array]) {
+                $buildBranch = $branchField[0]
+            } else {
+                $buildBranch = $branchField
+            }
+
+            # Append branch to build args
+            if ($buildArgs -match '^\s*\S+\s*$') {
+                $buildArgs = "$($buildArgs.Trim()) $buildBranch"
+            }
+
+            $repoPath = $repoEntry.path
+            $pull = Get-GitPull -branch $buildBranch
+            return "cd $repoPath && echo '[git pull]' && $pull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
         }
 
         'deploy' {

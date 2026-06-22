@@ -43,7 +43,17 @@ $Manifest = "$RepoDir/manifest.json"
 if ($Pull) {
     Write-Host "Pulling latest from repo..."
     if ($Force) {
-        $branch = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null
+        # Read branch from manifest.json for this repo, fall back to HEAD detection
+        $manifestPath = "$RepoDir/node/manifest.json"
+        $branch = $null
+        if (Test-Path $manifestPath) {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            $repoEntry = $manifest.repos | Where-Object { $_.path -eq $RepoDir } | Select-Object -First 1
+            if ($repoEntry) {
+                $branch = if ($repoEntry.branch -is [array]) { $repoEntry.branch[0] } else { $repoEntry.branch }
+            }
+        }
+        if (-not $branch) { $branch = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null }
         git -C $RepoDir fetch --all -q 2>$null
         git -C $RepoDir reset --hard "origin/$branch" -q 2>$null
         if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git force pull failed" -ForegroundColor Yellow }
@@ -93,15 +103,6 @@ if ($Run -or $RunOnly) {
         return
     }
 
-    # Build variable lookup from the vars section
-    $vars = @{}
-    if ($entries.PSObject.Properties['vars']) {
-        $entries.vars.PSObject.Properties | ForEach-Object { $vars[$_.Name] = $_.Value }
-        Write-Host ""
-        Write-Host "Variables:" -ForegroundColor DarkGray
-        $vars.GetEnumerator() | ForEach-Object { Write-Host "  $($_.Key) = $($_.Value)" -ForegroundColor DarkGray }
-    }
-
     Write-Host ""
     Write-Host "Executing runcmd from manifest..."
 
@@ -111,10 +112,27 @@ if ($Run -or $RunOnly) {
         $cmdArgs = $cmd.args
         $background = if ($cmd.PSObject.Properties['background']) { $cmd.background } else { $false }
 
-        # Resolve ${varName} placeholders in args
-        foreach ($key in $vars.Keys) {
-            $pattern = [regex]::Escape("`${$key}")
-            $cmdArgs = $cmdArgs -replace $pattern, $vars[$key]
+        # For build.sh: resolve branch from runcmd index into repos[].branch, or repos[].branch directly
+        if ($scriptName -eq 'build.sh' -and $cmdArgs -match '^\s*(\S+)\s*$') {
+            $buildSystem = $Matches[1]
+            $repoName = switch ($buildSystem) { 'resp-bench' { 'garnet' }; default { $buildSystem } }
+            $repoEntry = $entries.repos | Where-Object { $_.name -eq $repoName } | Select-Object -First 1
+            $resolvedBranch = $null
+
+            if ($repoEntry -and $repoEntry.branch) {
+                $branchField = $repoEntry.branch
+                if ($cmd.PSObject.Properties['branch'] -and $null -ne $cmd.branch -and $branchField -is [array]) {
+                    # Index into branch array
+                    $resolvedBranch = $branchField[$cmd.branch]
+                } elseif ($branchField -is [array]) {
+                    # Default to first element
+                    $resolvedBranch = $branchField[0]
+                } else {
+                    $resolvedBranch = $branchField
+                }
+            }
+
+            if ($resolvedBranch) { $cmdArgs = "$buildSystem $resolvedBranch" }
         }
 
         # Resolve script path from the scripts section by matching filename
