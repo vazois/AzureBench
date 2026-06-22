@@ -14,14 +14,13 @@
     cluster-deploy.ps1 -Action setup -System valkey -ICount 4 -Replicas 1
     cluster-deploy.ps1 -Action stop -System valkey -ICount 4
     cluster-deploy.ps1 -Action start -System garnet -Template cache -ICount 1 -NoCluster
-    cluster-deploy.ps1 -Action start -Endpoint 10.5.1.4 -NodeCount 6 -System valkey -Template cache -ICount 4
+    cluster-deploy.ps1 -Action start -NodeCount 6 -System valkey -Template cache -ICount 4
 #>
 param(
     [ValidateSet("discover","start","setup","stop")][string]$Action,
     [ValidateSet("valkey","garnet")][string]$System,
     [string]$Template,
     [int]$ICount = 1,
-    [string]$Endpoint,
     [int]$NodeCount,
     [switch]$Clean,
     [int]$Replicas = 0,
@@ -48,8 +47,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -System         Target system: valkey or garnet (required for start/setup/stop)"
     Write-Host "  -Template       Config template name (required for start)"
     Write-Host "  -ICount  Number of instances per VM (required)"
-    Write-Host "  -Endpoint       Base IP (skip discovery, use sequential IPs)"
-    Write-Host "  -NodeCount      Number of VMs (with -Endpoint, or as expected count validation)"
+    Write-Host "  -NodeCount      Use first N peers from cache/discovery (optional, default: all)"
     Write-Host "  -Clean          Clean cluster directories before starting"
     Write-Host "  -Replicas       Number of replicas per primary (default: 0)"
     Write-Host "  -NoCluster      Disable cluster mode in configs"
@@ -208,18 +206,6 @@ function Show-Discovery {
     }
     Write-Host ""
     Write-Host "  Peers: $($ProbeResults.Count) | Listening: $totalListening/$totalPorts" -ForegroundColor Yellow
-}
-
-function Get-IpList {
-    param([string]$Base, [int]$Count)
-    $parts = $Base -split '\.'
-    $lastOctet = [int]$parts[3]
-    $prefix = "$($parts[0]).$($parts[1]).$($parts[2])"
-    $ips = @()
-    for ($i = 0; $i -lt $Count; $i++) {
-        $ips += "$prefix.$($lastOctet + $i)"
-    }
-    return $ips
 }
 
 function Test-SshConnectivity {
@@ -487,38 +473,36 @@ function Get-PeerCache {
 # --- Resolve Peers ---
 
 function Resolve-Peers {
-    param([string]$Endpoint, [int]$NodeCount, [string]$User, [int]$SshTimeout, [switch]$ForceDiscover)
-
-    if ($Endpoint -and $NodeCount -gt 0) {
-        # Legacy mode: sequential IPs from base
-        Write-Host "Using provided Endpoint + NodeCount (sequential IPs)..." -ForegroundColor DarkGray
-        $ips = Get-IpList -Base $Endpoint -Count $NodeCount
-        Test-SshConnectivity -Ips $ips -SshUser $User -Timeout $SshTimeout
-        return @{ Ips = $ips; OwnIp = $null }
-    }
+    param([int]$NodeCount, [string]$User, [int]$SshTimeout, [switch]$ForceDiscover)
 
     # Try cache first (unless forced)
+    $peers = $null
     if (-not $ForceDiscover) {
         $cached = Get-PeerCache
-        if ($cached) { return $cached }
+        if ($cached) {
+            $peers = $cached.Ips
+        }
     }
 
-    # Discovery mode
-    $eth1 = Get-OwnEth1Info
-    $peers = Find-Peers -OwnIp $eth1.Ip -Prefix $eth1.Prefix -SshUser $User -Timeout $SshTimeout
-
-    # Save to cache immediately after discovery
-    Save-PeerCache -Ips $peers -OwnIp $eth1.Ip
-
-    # Validate VMSS family
-    Test-VmssFamily -Ips $peers -SshUser $User -Timeout $SshTimeout
-
-    # If NodeCount given, validate expected count
-    if ($NodeCount -gt 0 -and $peers.Count -ne $NodeCount) {
-        Write-Host "WARNING: Expected $NodeCount peers but found $($peers.Count)" -ForegroundColor Yellow
+    # Discovery mode if no cache
+    if (-not $peers) {
+        $eth1 = Get-OwnEth1Info
+        $peers = Find-Peers -OwnIp $eth1.Ip -Prefix $eth1.Prefix -SshUser $User -Timeout $SshTimeout
+        Save-PeerCache -Ips $peers -OwnIp $eth1.Ip
+        Test-VmssFamily -Ips $peers -SshUser $User -Timeout $SshTimeout
     }
 
-    return @{ Ips = $peers; OwnIp = $eth1.Ip }
+    # Slice to first N if NodeCount specified
+    if ($NodeCount -gt 0 -and $NodeCount -lt $peers.Count) {
+        Write-Host "  Using first $NodeCount of $($peers.Count) discovered peers" -ForegroundColor DarkGray
+        $peers = $peers[0..($NodeCount - 1)]
+    } elseif ($NodeCount -gt 0 -and $NodeCount -gt $peers.Count) {
+        Write-Host "WARNING: Requested $NodeCount nodes but only $($peers.Count) available" -ForegroundColor Yellow
+    }
+
+    Test-SshConnectivity -Ips $peers -SshUser $User -Timeout $SshTimeout
+    $ownIp = if ($cached) { $cached.OwnIp } else { $eth1.Ip }
+    return @{ Ips = $peers; OwnIp = $ownIp }
 }
 
 # --- Main ---
@@ -527,7 +511,7 @@ Write-Host "==== cluster-deploy ($Action) ====" -ForegroundColor Cyan
 
 switch ($Action) {
     "discover" {
-        $peerInfo = Resolve-Peers -Endpoint $Endpoint -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -ForceDiscover
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -ForceDiscover
         $ips = $peerInfo.Ips
 
         if ($ICount -gt 0) {
@@ -552,7 +536,7 @@ switch ($Action) {
         if (-not $Template) { throw "ERROR: -Template is required for start." }
         if (-not $ICount) { throw "ERROR: -ICount is required for start." }
 
-        $peerInfo = Resolve-Peers -Endpoint $Endpoint -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
         $ips = $peerInfo.Ips
         $ownIp = $peerInfo.OwnIp
 
@@ -584,7 +568,7 @@ switch ($Action) {
         if (-not $System) { throw "ERROR: -System is required for setup." }
         if (-not $ICount) { throw "ERROR: -ICount is required for setup." }
 
-        $peerInfo = Resolve-Peers -Endpoint $Endpoint -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
         $ips = $peerInfo.Ips
 
         # Build endpoint list
@@ -628,7 +612,7 @@ switch ($Action) {
     "stop" {
         if (-not $System) { throw "ERROR: -System is required for stop." }
 
-        $peerInfo = Resolve-Peers -Endpoint $Endpoint -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
         $ips = $peerInfo.Ips
         $ownIp = $peerInfo.OwnIp
 
