@@ -14,11 +14,12 @@ param(
     [switch]$Copy,
     [switch]$Run,
     [switch]$RunOnly,
+    [switch]$Force,
     [switch]$Help
 )
 
 if ($Help -or (-not $Pull -and -not $Copy -and -not $Run -and -not $RunOnly)) {
-    Write-Host "Usage: update.ps1 [-Pull] [-Copy] [-Run] [-RunOnly]"
+    Write-Host "Usage: update.ps1 [-Pull] [-Copy] [-Run] [-RunOnly] [-Force]"
     Write-Host ""
     Write-Host "Pull latest repo, copy scripts, and optionally run deploy commands."
     Write-Host "Reads manifest.json for source->destination mapping and runcmd definitions."
@@ -28,6 +29,7 @@ if ($Help -or (-not $Pull -and -not $Copy -and -not $Run -and -not $RunOnly)) {
     Write-Host "  -Copy      Copy scripts to deployed locations"
     Write-Host "  -Run       Copy scripts and execute the runcmd section from manifest"
     Write-Host "  -RunOnly   Execute runcmd without copying scripts"
+    Write-Host "  -Force     Force pull (git reset --hard) instead of fast-forward"
     Write-Host "  -Help      Show this help message"
     return
 }
@@ -40,8 +42,15 @@ $Manifest = "$RepoDir/manifest.json"
 
 if ($Pull) {
     Write-Host "Pulling latest from repo..."
-    git -C $RepoDir pull --ff-only -q 2>$null
-    if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git pull failed" -ForegroundColor Yellow }
+    if ($Force) {
+        $branch = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null
+        git -C $RepoDir fetch --all -q 2>$null
+        git -C $RepoDir reset --hard "origin/$branch" -q 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git force pull failed" -ForegroundColor Yellow }
+    } else {
+        git -C $RepoDir pull --ff-only -q 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git pull failed (use -Force to reset)" -ForegroundColor Yellow }
+    }
 }
 
 if (-not (Test-Path $Manifest)) {

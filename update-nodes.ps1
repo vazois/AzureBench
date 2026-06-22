@@ -56,6 +56,8 @@ param(
 
     [string]$SshUser = 'guser',
 
+    [switch]$Force,
+
     [switch]$Help
 )
 
@@ -79,6 +81,7 @@ if ($Help -or -not $rg) {
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
     Write-Host "  -Verbose            Show per-instance command output"
+    Write-Host "  -Force              Force pull (git reset --hard) instead of fast-forward"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -204,6 +207,9 @@ if (-not $sshKey) {
 Write-Host "Using SSH key: $sshKey" -ForegroundColor DarkGray
 
 # --- Build SSH Command based on Action ---
+# Git pull strategy: fast-forward only or force reset
+$gitPull = if ($Force) { "git fetch --all && git reset --hard origin/\$(git rev-parse --abbrev-ref HEAD)" } else { "git pull --ff-only" }
+
 function Get-SshCommand {
     param([string]$Action, [string]$System)
 
@@ -223,7 +229,7 @@ function Get-SshCommand {
             } | Where-Object { $_ }
 
             $pullCommands = $repoPaths | ForEach-Object {
-                "cd $_ && git pull --ff-only 2>&1 | sed 's/^/[$([System.IO.Path]::GetFileName($_))]: /'"
+                "cd $_ && $gitPull 2>&1 | sed 's/^/[$([System.IO.Path]::GetFileName($_))]: /'"
             }
 
             return $pullCommands -join '; '
@@ -276,15 +282,17 @@ function Get-SshCommand {
                 exit 1
             }
 
-            return "cd $repoPath && echo '[git pull]' && git pull --ff-only && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
+            return "cd $repoPath && echo '[git pull]' && $gitPull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
         }
 
         'deploy' {
-            return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Run"
+            $forceFlag = if ($Force) { " -Force" } else { "" }
+            return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Run$forceFlag"
         }
 
         'install' {
-            return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy"
+            $forceFlag = if ($Force) { " -Force" } else { "" }
+            return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy$forceFlag"
         }
 
         'ping' {
