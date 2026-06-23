@@ -1,0 +1,39 @@
+op = GET, DbSize = 262144
+34 instances (shards, threads, workers,batch, value)
+
+             (    6,       64,    384,     1,   256): 11,120.50 Kops/sec |  2.662 GB/s data |  3.016 GB/s wire
+             (    6,       64,    384,     4,   256): 41,370.60 Kops/sec |  9.902 GB/s data | 11.215 GB/s wire
+             (    6,       64,    384,     8,   256): 75,073.20 Kops/sec | 17.966 GB/s data | 20.344 GB/s wire
+             (    6,       64,    384,    16,   256): 87,434.50 Kops/sec | 20.925 GB/s data | 23.696 GB/s wire
+             (    6,       64,    384,    32,   256): 88,603.20 Kops/sec | 21.204 GB/s data | 24.013 GB/s wire
+             (    6,       64,    384,    64,   256): 89,102.20 Kops/sec | 21.327 GB/s data | 24.147 GB/s wire
+
+op = SET, DbSize = 262144
+34 instances (shards, threads, workers,batch, value)
+
+             (    6,       64,    384,     1,   256):  15,346.50 Kops/sec |  3.672 GB/s data |  4.230 GB/s wire
+             (    6,       64,    384,     4,   256):  55,158.70 Kops/sec | 13.203 GB/s data | 15.206 GB/s wire
+             (    6,       64,    384,     8,   256):  83,180.80 Kops/sec | 19.910 GB/s data | 22.928 GB/s wire
+             (    6,       64,    384,    16,   256): 108,222.00 Kops/sec | 25.904 GB/s data | 29.835 GB/s wire
+             (    6,       64,    384,    32,   256): 141,869.80 Kops/sec | 33.955 GB/s data | 39.109 GB/s wire
+             (    6,       64,    384,    64,   256): 148,749.60 Kops/sec | 35.603 GB/s data | 41.007 GB/s wire
+
+op = SET, DbSize = 262144, aof
+34 instances (shards, threads, workers,batch, value)
+
+             (    6,       64,    384,     1,   256):  11,173.50 Kops/sec |  2.676 GB/s data |  3.026 GB/s wire
+             (    6,       64,    384,     4,   256):  42,467.40 Kops/sec | 10.166 GB/s data | 11.507 GB/s wire
+             (    6,       64,    384,     8,   256):  74,816.40 Kops/sec | 17.906 GB/s data | 20.274 GB/s wire
+             (    6,       64,    384,    16,   256):  88,596.90 Kops/sec | 21.206 GB/s data | 24.010 GB/s wire
+             (    6,       64,    384,    32,   256):  90,076.10 Kops/sec | 21.561 GB/s data | 24.411 GB/s wire
+             (    6,       64,    384,    64,   256):  91,466.00 Kops/sec | 21.894 GB/s data | 24.788 GB/s wire
+
+op = SET, DbSize = 262144, x16 aof-mlog
+34 instances (shards, threads, workers,batch, value)
+
+             (    6,       64,    384,     1,   256):  14,821.70 Kops/sec |  3.549 GB/s data |  4.087 GB/s wire
+             (    6,       64,    384,     4,   256):  49,884.40 Kops/sec | 11.942 GB/s data | 13.750 GB/s wire
+             (    6,       64,    384,     8,   256):  71,341.30 Kops/sec | 17.077 GB/s data | 19.668 GB/s wire
+             (    6,       64,    384,    16,   256):  90,314.10 Kops/sec | 21.619 GB/s data | 24.893 GB/s wire
+             (    6,       64,    384,    32,   256): 107,651.40 Kops/sec | 25.767 GB/s data | 29.679 GB/s wire
+             (    6,       64,    384,    64,   256): 118,131.20 Kops/sec | 28.273 GB/s data | 32.565 GB/s wire
