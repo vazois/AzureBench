@@ -37,10 +37,10 @@ if ($Help) {
     Write-Host "Config file keys:"
     Write-Host "  SshKey           - Path to SSH private key"
     Write-Host "  SshUser          - SSH username"
-    Write-Host "  SshHost          - Base remote hostname (vm prefix before index)"
-    Write-Host "  HostCount        - Number of physical hosts/VMs"
+    Write-Host "  ClientMachineHostnames - Base remote hostname (vm prefix before index)"
+    Write-Host "  ClientMachineCount     - Number of physical hosts/VMs"
     Write-Host "  Multiplier       - Benchmark instances per VM (default: 1)"
-    Write-Host "  Host             - Benchmark target host (--host)"
+    Write-Host "  Server           - Benchmark target host (--host)"
     Write-Host "  Port             - Benchmark target port (--port)"
     Write-Host "  Threads          - Number of threads (--threads)"
     Write-Host "  Runtime          - Runtime in seconds (--runtime)"
@@ -104,10 +104,10 @@ if (Test-Path $manifestPath) {
     $sshKey = "$env:USERPROFILE\.ssh\id_ed25519"
 }
 $sshUser         = $config["SshUser"]         ?? "guser"
-$sshHostBase     = $config["SshHost"]         ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
-$hostCount       = [int]($config["HostCount"] ?? $config["InstancePerHost"] ?? "1")
+$sshHostBase     = $config["ClientMachineHostnames"] ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
+$hostCount       = [int]($config["ClientMachineCount"] ?? "1")
 $multiplier      = [int]($config["Multiplier"] ?? "1")
-$benchHost    = $config["Host"]         ?? "10.5.1.4"
+$benchHost    = $config["Server"]       ?? "10.5.1.4"
 $benchPort    = $config["Port"]         ?? "7000"
 $threads      = $config["Threads"]      ?? "4"
 $runtime      = $config["Runtime"]      ?? "60"
@@ -149,7 +149,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
         $startIndex = [int]$Matches[2]
         $domain = $Matches[3]
     } else {
-        Write-Error "SshHost must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
+        Write-Error "ClientMachineHostnames must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
         exit 1
     }
     for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
@@ -184,8 +184,20 @@ $probeOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no'
 $probeHost = $sshHosts | Select-Object -First 1
 Write-Host "Probing server info (${benchHost}:${benchPort})..." -ForegroundColor DarkGray
 $serverInfoRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "redis-cli -h $benchHost -p $benchPort info server 2>/dev/null" 2>&1
+$serverReplRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "redis-cli -h $benchHost -p $benchPort info replication 2>/dev/null" 2>&1
 $serverCpuRaw = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" "ssh -o StrictHostKeyChecking=no ${sshUser}@${benchHost} nproc 2>/dev/null" 2>&1
 $serverCpuCount = ($serverCpuRaw | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
+
+# Parse replication info to count sublogs (comma-separated values in master_repl_offset)
+$serverSublogs = 0
+foreach ($line in $serverReplRaw) {
+    $lineStr = "$line"
+    if ($lineStr -match '^master_repl_offset:(.+)$') {
+        $serverSublogs = ($Matches[1].Trim() -split ',').Count
+        break
+    }
+}
+
 $serverInfo = @{}
 foreach ($line in $serverInfoRaw) {
     $lineStr = "$line"
@@ -200,11 +212,12 @@ if ($serverInfo.Count -gt 0) {
                      else { "?" }
     Write-Host ""
     Write-Host "=== Server Info ===" -ForegroundColor Cyan
-    Write-Host "  Server : $serverName $serverVersion"
-    if ($serverCpuCount) { Write-Host "  CPUs   : $serverCpuCount" }
-    if ($serverInfo["os"]) { Write-Host "  OS     : $($serverInfo["os"])" }
-    if ($serverInfo["tcp_port"]) { Write-Host "  Port   : $($serverInfo["tcp_port"])" }
-    if ($serverInfo["uptime_in_seconds"]) { Write-Host "  Uptime : $($serverInfo["uptime_in_seconds"])s" }
+    Write-Host "  Server  : $serverName $serverVersion"
+    if ($serverCpuCount) { Write-Host "  CPUs    : $serverCpuCount" }
+    if ($serverSublogs -gt 0) { Write-Host "  Sublogs : $serverSublogs" }
+    if ($serverInfo["os"]) { Write-Host "  OS      : $($serverInfo["os"])" }
+    if ($serverInfo["tcp_port"]) { Write-Host "  Port    : $($serverInfo["tcp_port"])" }
+    if ($serverInfo["uptime_in_seconds"]) { Write-Host "  Uptime  : $($serverInfo["uptime_in_seconds"])s" }
     Write-Host "===================" -ForegroundColor Cyan
     Write-Host ""
 } else {
@@ -215,11 +228,10 @@ if ($serverInfo.Count -gt 0) {
 # --- Probe benchmark config by running a 1s test on one host ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-# Use skipload + GET + small dbsize for fast probe (avoids loading large datasets)
+# Use short runtime + small dbsize for fast probe
 $probeCmd = $benchCmd -replace '--runtime\s+\d+', '--runtime 1'
-$probeCmd = $probeCmd -replace '--op\s+\S+', '--op GET'
-if ($probeCmd -notmatch '--op') { $probeCmd += ' --op GET' }
-$probeCmd += ' --skipload --dbsize 1'
+$probeCmd = $probeCmd -replace '--dbsize\s+\d+', '--dbsize 1'
+if ($probeCmd -notmatch '--dbsize') { $probeCmd += ' --dbsize 1' }
 Write-Host "Probing benchmark configuration..." -ForegroundColor DarkGray
 $probeOutput = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" $probeCmd 2>&1
 $configBlock = @()
@@ -238,14 +250,11 @@ foreach ($line in $probeOutput) {
 }
 if ($configBlock.Count -gt 0) {
     Write-Host ""
-    # Fix values back to actual (probe uses --runtime 1, --op GET, --skipload, --dbsize 1)
-    $op = $config["Op"] ?? "GET"
+    # Fix values back to actual (probe uses --runtime 1, --dbsize 1)
     $actualDbSize = $config["DbSize"] ?? ""
     $configBlock | ForEach-Object {
         $line = $_ -replace 'Runtime:\s*1s', "Runtime: ${runtime}s"
-        $line = $line -replace 'Op:\s*\S+', "Op: $op"
         $line = $line -replace 'DB Size:\s*\d+', "DB Size: $(if ($actualDbSize) { $actualDbSize } else { '0' })"
-        $line = $line -replace 'Skip Load:\s*\S+', "Skip Load: No"
         Write-Host $line -ForegroundColor Cyan
     }
     Write-Host ""

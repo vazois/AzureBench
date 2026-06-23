@@ -298,7 +298,32 @@ switch ($Action) {
         $manifest | ConvertTo-Json -Depth 3 | Set-Content -Path $manifestFile -Encoding utf8
         Write-Host "  Updated manifest.json with keyVaultName=$discoveredKv" -ForegroundColor Green
 
-        # Update vmss-parameters.json
+        # Collect all public keys from security/ (copy from basePath if missing)
+        $pubKeys = @()
+        foreach ($key in $manifest.userKeys) {
+            $secFile = Join-Path $securityDir "$key.pub"
+            if (-not (Test-Path $secFile)) {
+                $srcFile = Join-Path $basePath "$key.pub"
+                if (Test-Path $srcFile) {
+                    Copy-Item $srcFile $secFile -Force
+                    Write-Host "  Copied: $key.pub"
+                }
+            }
+            if (Test-Path $secFile) {
+                $pubKeys += (Get-Content $secFile -Raw).Trim()
+            }
+        }
+        $vmKeyPubSrc = Join-Path $basePath "$($manifest.vmKeys).pub"
+        $vmKeyPubDst = Join-Path $securityDir "$($manifest.vmKeys).pub"
+        if (-not (Test-Path $vmKeyPubDst) -and (Test-Path $vmKeyPubSrc)) {
+            Copy-Item $vmKeyPubSrc $vmKeyPubDst -Force
+            Write-Host "  Copied: $($manifest.vmKeys).pub"
+        }
+        if (Test-Path $vmKeyPubDst) {
+            $pubKeys += (Get-Content $vmKeyPubDst -Raw).Trim()
+        }
+
+        # Update vmss-parameters.json with keyVaultName and sshPublicKeys
         if (Test-Path $vmssParamsFile) {
             $params = Get-Content $vmssParamsFile -Raw | ConvertFrom-Json
         } else {
@@ -309,6 +334,10 @@ switch ($Action) {
             }
         }
         $params.parameters | Add-Member -NotePropertyName 'keyVaultName' -NotePropertyValue ([PSCustomObject]@{ value = $discoveredKv }) -Force
+        if ($pubKeys.Count -gt 0) {
+            $params.parameters | Add-Member -NotePropertyName 'sshPublicKeys' -NotePropertyValue ([PSCustomObject]@{ value = $pubKeys }) -Force
+            Write-Host "  SSH keys: $($pubKeys.Count) ($($manifest.userKeys -join ', '), $($manifest.vmKeys))" -ForegroundColor Green
+        }
         $params | ConvertTo-Json -Depth 5 | Set-Content -Path $vmssParamsFile -Encoding utf8
         Write-Host "  Updated $vmssParamsFile with keyVaultName=$discoveredKv" -ForegroundColor Green
     }

@@ -31,10 +31,10 @@ if ($Help) {
     Write-Host ""
     Write-Host "Config file keys:"
     Write-Host "  SshUser          - SSH username (default: guser)"
-    Write-Host "  SshHost          - Base remote hostname or [host1, host2] array"
-    Write-Host "  HostCount        - Number of physical hosts/VMs"
+    Write-Host "  ClientMachineHostnames - Base remote hostname or [host1, host2] array"
+    Write-Host "  ClientMachineCount     - Number of physical hosts/VMs"
     Write-Host "  Multiplier       - Benchmark instances per VM (default: 1)"
-    Write-Host "  Host             - Benchmark target host (-s)"
+    Write-Host "  Server           - Benchmark target host (-s)"
     Write-Host "  Port             - Benchmark target port (--port)"
     Write-Host "  Threads          - Number of threads (default: 128)"
     Write-Host "  Clients          - Clients per thread (default: 64)"
@@ -107,10 +107,10 @@ if (Test-Path $manifestPath) {
 
 # --- Resolve parameters ---
 $sshUser         = $config["SshUser"]         ?? "guser"
-$sshHostBase     = $config["SshHost"]         ?? "vm0.example.com"
-$hostCount       = [int]($config["HostCount"] ?? $config["InstancePerHost"] ?? "1")
+$sshHostBase     = $config["ClientMachineHostnames"] ?? "vm0.example.com"
+$hostCount       = [int]($config["ClientMachineCount"] ?? "1")
 $multiplier      = [int]($config["Multiplier"] ?? "1")
-$benchHost       = $config["Host"]            ?? "10.5.1.4"
+$benchHost       = $config["Server"]       ?? "10.5.1.4"
 $benchPort       = $config["Port"]            ?? "6379"
 $threads         = $config["Threads"]         ?? "128"
 $clients         = $config["Clients"]         ?? "64"
@@ -152,7 +152,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
         $startIndex = [int]$Matches[2]
         $domain = $Matches[3]
     } else {
-        Write-Error "SshHost must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
+        Write-Error "ClientMachineHostnames must follow pattern: <prefix><index>.<domain> (e.g., vm0.example.com)"
         exit 1
     }
     for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {

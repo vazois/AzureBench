@@ -39,6 +39,15 @@ for attempt in $(seq 1 $MAX_RETRIES); do
     chown $DEPLOY_USER:$DEPLOY_USER "$SSH_DIR/id_ed25519"
     chmod 600 "$SSH_DIR/id_ed25519"
 
+    # Derive public key and ensure it's in authorized_keys
+    PUB_KEY=$(ssh-keygen -y -f "$SSH_DIR/id_ed25519" 2>/dev/null)
+    if [ -n "$PUB_KEY" ]; then
+      grep -qF "$PUB_KEY" "$SSH_DIR/authorized_keys" 2>/dev/null || \
+        printf '%s\n' "$PUB_KEY" >> "$SSH_DIR/authorized_keys"
+      chown $DEPLOY_USER:$DEPLOY_USER "$SSH_DIR/authorized_keys"
+      chmod 600 "$SSH_DIR/authorized_keys"
+    fi
+
     # Derive SSH Host pattern from VNET_PREFIX (e.g., 10.5.0.0/16 -> 10.5.*.*)
     VNET_BASE="${VNET_PREFIX%%/*}"
     IFS='.' read -r v1 v2 v3 v4 <<< "$VNET_BASE"
