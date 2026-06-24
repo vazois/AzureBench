@@ -37,14 +37,16 @@ if ($Help -or (-not $Pull -and -not $Copy -and -not $Run -and -not $RunOnly)) {
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoDir = $ScriptDir
-$Manifest = "$RepoDir/manifest.json"
+$RepoDir = Split-Path -Parent $ScriptDir
+$Manifest = "$ScriptDir/manifest.json"
 
 if ($Pull) {
     Write-Host "Pulling latest from repo..."
+    # Restart DNS resolver to avoid transient resolution failures
+    bash -c "sudo systemctl restart systemd-resolved" 2>$null
     if ($Force) {
         # Read branch from manifest.json for this repo, fall back to HEAD detection
-        $manifestPath = "$RepoDir/node/manifest.json"
+        $manifestPath = "$ScriptDir/manifest.json"
         $branch = $null
         if (Test-Path $manifestPath) {
             $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
@@ -54,11 +56,12 @@ if ($Pull) {
             }
         }
         if (-not $branch) { $branch = git -C $RepoDir rev-parse --abbrev-ref HEAD 2>$null }
-        git -C $RepoDir fetch --all -q 2>$null
-        git -C $RepoDir reset --hard "origin/$branch" -q 2>$null
+        Write-Host "  Fetching (branch: $branch)..."
+        git -C $RepoDir fetch --all -q 2>&1
+        git -C $RepoDir reset --hard "origin/$branch" 2>&1
         if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git force pull failed" -ForegroundColor Yellow }
     } else {
-        git -C $RepoDir pull --ff-only -q 2>$null
+        git -C $RepoDir pull --ff-only 2>&1
         if ($LASTEXITCODE -ne 0) { Write-Host "  WARNING: git pull failed (use -Force to reset)" -ForegroundColor Yellow }
     }
 }
@@ -80,7 +83,7 @@ if (-not $RunOnly) {
     }
 
     foreach ($entry in $entries.scripts) {
-        $src = "$RepoDir/$($entry.src)"
+        $src = "$ScriptDir/$($entry.src)"
         $dst = $entry.dst
         $mode = $entry.mode
 

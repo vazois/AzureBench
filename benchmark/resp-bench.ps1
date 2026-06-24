@@ -228,50 +228,14 @@ if ($serverInfo.Count -gt 0) {
 # --- Probe benchmark config by running a 1s test on one host ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
-# Use short runtime + small dbsize for fast probe
-$probeCmd = $benchCmd -replace '--runtime\s+\d+', '--runtime 1'
-$probeCmd = $probeCmd -replace '--dbsize\s+\d+', '--dbsize 1'
-if ($probeCmd -notmatch '--dbsize') { $probeCmd += ' --dbsize 1' }
-Write-Host "Probing benchmark configuration..." -ForegroundColor DarkGray
-$probeOutput = ssh -i $sshKey @probeOpts "${sshUser}@${probeHost}" $probeCmd 2>&1
-$configBlock = @()
-$inConfig = $false
-foreach ($line in $probeOutput) {
-    $lineStr = "$line"
-    if ($lineStr -match '={3,}.*[Cc]onfiguration') {
-        $inConfig = $true
-        $configBlock += $lineStr
-    } elseif ($inConfig -and $lineStr -match '^={3,}\s*$') {
-        $configBlock += $lineStr
-        break
-    } elseif ($inConfig) {
-        $configBlock += $lineStr
-    }
-}
-if ($configBlock.Count -gt 0) {
-    Write-Host ""
-    # Fix values back to actual (probe uses --runtime 1, --dbsize 1)
-    $actualDbSize = $config["DbSize"] ?? ""
-    $configBlock | ForEach-Object {
-        $line = $_ -replace 'Runtime:\s*1s', "Runtime: ${runtime}s"
-        $line = $line -replace 'DB Size:\s*\d+', "DB Size: $(if ($actualDbSize) { $actualDbSize } else { '0' })"
-        Write-Host $line -ForegroundColor Cyan
-    }
-    Write-Host ""
-    # Extract workers per instance from config block
-    $workersPerInstance = 0
-    $configBlock | ForEach-Object {
-        if ($_ -match 'Workers:\s*(\d+)') {
-            $workersPerInstance = [int]$Matches[1]
-        }
-    }
-} else {
-    Write-Host "=== Benchmark Configuration ===" -ForegroundColor Cyan
-    Write-Host "  Command    : $benchCmd"
-    Write-Host "===============================" -ForegroundColor Cyan
-    Write-Host ""
-    $workersPerInstance = [int]$threads
-}
+
+Write-Host ""
+Write-Host "=== Benchmark Command ===" -ForegroundColor Yellow
+Write-Host "  $benchCmd" -ForegroundColor Yellow
+Write-Host "=========================" -ForegroundColor Yellow
+Write-Host ""
+
+$workersPerInstance = Show-BenchmarkConfig -BenchCmd $benchCmd -SshKey $sshKey -SshUser $sshUser -ProbeHost $probeHost -Runtime $runtime -DbSize ($config["DbSize"] ?? "") -Threads ([int]$threads)
 
 # --- Print instance configuration ---
 $totalWorkers = $workersPerInstance * $instances

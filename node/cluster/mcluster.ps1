@@ -200,6 +200,14 @@ function Clean-System {
             Write-Host "  $valkeyDir does not exist (skipped)" -ForegroundColor DarkGray
         }
     }
+    # Clean ramdisk directories
+    $ramdiskDir = "/mnt/ramdisk"
+    if (Test-Path $ramdiskDir) {
+        Get-ChildItem -Path $ramdiskDir -Directory | ForEach-Object {
+            sudo rm -rf $_.FullName
+            Write-Host "  Removed $($_.FullName)"
+        }
+    }
 }
 
 function Stop-System {

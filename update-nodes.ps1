@@ -210,11 +210,12 @@ Write-Host "Using SSH key: $sshKey" -ForegroundColor DarkGray
 # Git pull strategy: fast-forward only or force reset
 # $branch param is optional; when provided, force uses that explicit branch instead of detecting HEAD
 function Get-GitPull([string]$branch = '') {
+    $dnsRestart = "sudo systemctl restart systemd-resolved"
     if ($Force) {
         $target = if ($branch) { "origin/$branch" } else { 'origin/$(git rev-parse --abbrev-ref HEAD)' }
-        return "git fetch --all && git reset --hard $target"
+        return "$dnsRestart && git fetch --all && git reset --hard $target"
     } else {
-        return "git pull --ff-only"
+        return "$dnsRestart && git pull --ff-only"
     }
 }
 

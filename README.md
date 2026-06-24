@@ -222,6 +222,9 @@ SSH into VMSS instances to refresh repositories, rebuild systems, or re-run init
 
 # Update scripts only (no rebuild)
 .\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action install
+
+# Refresh repos
+pwsh .\update-nodes.ps1 --action refresh
 ```
 
 **Notes:**
