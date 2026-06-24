@@ -16,6 +16,18 @@ SYSTEM="${1:?Usage: build.sh <system> [branch] [tls]}"
 BRANCH="${2:-}"
 TLS="${3:-}"
 
+MANIFEST="$USER_HOME/AzureBench/node/manifest.json"
+
+get_repo_path() {
+  local name="$1"
+  jq -r --arg n "$name" '.repos[] | select(.name == $n) | .path' "$MANIFEST"
+}
+
+GARNET_DIR=$(get_repo_path "garnet")
+VALKEY_DIR=$(get_repo_path "valkey")
+REDIS_DIR=$(get_repo_path "redis")
+MEMTIER_DIR=$(get_repo_path "memtier")
+
 build_valkey_redis() {
   local dir="$1"
   if [ ! -d "$dir" ]; then

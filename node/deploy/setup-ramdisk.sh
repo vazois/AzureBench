@@ -8,7 +8,7 @@
 set -e
 source /opt/deploy-actions/config.env
 
-MOUNT_PATH="${1:-/mnt/ramdisk}"
+MOUNT_PATH="${1:-$RAMDISK_DIR}"
 SIZE_PERCENT="${2:-50}"
 
 TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')

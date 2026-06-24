@@ -63,6 +63,7 @@ if (Test-Path $configFile) {
 if (-not $IFACE) { $IFACE = "eth1" }
 if (-not $BASE_PORT) { $BASE_PORT = 7000 } else { $BASE_PORT = [int]$BASE_PORT }
 if (-not $DEPLOY_USER) { $DEPLOY_USER = "guser" }
+if (-not $RAMDISK_DIR) { $RAMDISK_DIR = "/mnt/ramdisk" }
 
 $ConfDir = "$HOME/AzureBench/node/system"
 $RepoDir = "$HOME/AzureBench"
@@ -98,7 +99,8 @@ function Resolve-Template {
 
     # Check if template uses ramdisk and ensure directories exist
     $tmplContent = Get-Content $tmplFile -Raw
-    $usesRamdisk = $tmplContent -match '/mnt/ramdisk'
+    $usesRamdisk = $tmplContent -match '/mnt/ramdisk|RAMDISK'
+    $ramdiskDir = "$RAMDISK_DIR/$($Sys)-cluster"
 
     for ($i = 0; $i -lt $Count; $i++) {
         $port = $BASE_PORT + $i
@@ -107,10 +109,11 @@ function Resolve-Template {
 
         # Create ramdisk port directory if template points there
         if ($usesRamdisk) {
-            New-Item -ItemType Directory -Path "/mnt/ramdisk/$port" -Force | Out-Null
+            sudo mkdir -p "$ramdiskDir/$port"
         }
 
         $content = $tmplContent
+        $content = $content -replace '\$ramdisk', $RAMDISK_DIR
         $content = $content -replace '\$eth1', $eth1Ip
         $content = $content -replace '\$port', $port
 
@@ -190,6 +193,11 @@ function Clean-System {
         } else {
             Write-Host "  $garnetDir does not exist (skipped)" -ForegroundColor DarkGray
         }
+        $ramdiskDir = "$RAMDISK_DIR/garnet-cluster"
+        if (Test-Path $ramdiskDir) {
+            sudo rm -rf $ramdiskDir
+            Write-Host "  Removed $ramdiskDir"
+        }
     }
     if ($Sys -eq "valkey" -or [string]::IsNullOrEmpty($Sys)) {
         $valkeyDir = "$HOME/valkey-cluster"
@@ -199,13 +207,10 @@ function Clean-System {
         } else {
             Write-Host "  $valkeyDir does not exist (skipped)" -ForegroundColor DarkGray
         }
-    }
-    # Clean ramdisk directories
-    $ramdiskDir = "/mnt/ramdisk"
-    if (Test-Path $ramdiskDir) {
-        Get-ChildItem -Path $ramdiskDir -Directory | ForEach-Object {
-            sudo rm -rf $_.FullName
-            Write-Host "  Removed $($_.FullName)"
+        $ramdiskDir = "$RAMDISK_DIR/valkey-cluster"
+        if (Test-Path $ramdiskDir) {
+            sudo rm -rf $ramdiskDir
+            Write-Host "  Removed $ramdiskDir"
         }
     }
 }
