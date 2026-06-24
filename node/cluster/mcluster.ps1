@@ -96,12 +96,21 @@ function Resolve-Template {
     $clusterDir = if ($Sys -eq "garnet") { "$HOME/garnet-cluster" } else { "$HOME/valkey-cluster" }
     New-Item -ItemType Directory -Path $clusterDir -Force | Out-Null
 
+    # Check if template uses ramdisk and ensure directories exist
+    $tmplContent = Get-Content $tmplFile -Raw
+    $usesRamdisk = $tmplContent -match '/mnt/ramdisk'
+
     for ($i = 0; $i -lt $Count; $i++) {
         $port = $BASE_PORT + $i
         $portDir = "$clusterDir/$port"
         New-Item -ItemType Directory -Path $portDir -Force | Out-Null
 
-        $content = Get-Content $tmplFile -Raw
+        # Create ramdisk port directory if template points there
+        if ($usesRamdisk) {
+            New-Item -ItemType Directory -Path "/mnt/ramdisk/$port" -Force | Out-Null
+        }
+
+        $content = $tmplContent
         $content = $content -replace '\$eth1', $eth1Ip
         $content = $content -replace '\$port', $port
 

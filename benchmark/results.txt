@@ -1,3 +1,4 @@
++++GARNET+++
 op = GET, DbSize = 262144
 34 instances (shards, threads, workers,batch, value)
 
@@ -37,3 +38,6 @@ op = SET, DbSize = 262144, x16 aof-mlog
              (    6,       64,    384,    16,   256):  90,314.10 Kops/sec | 21.619 GB/s data | 24.893 GB/s wire
              (    6,       64,    384,    32,   256): 107,651.40 Kops/sec | 25.767 GB/s data | 29.679 GB/s wire
              (    6,       64,    384,    64,   256): 118,131.20 Kops/sec | 28.273 GB/s data | 32.565 GB/s wire
+
+
++++VALKEY+++

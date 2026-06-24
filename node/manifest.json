@@ -44,6 +44,11 @@
       "mode": "755"
     },
     {
+      "src": "deploy/setup-ramdisk.sh",
+      "dst": "/opt/deploy-actions/setup-ramdisk.sh",
+      "mode": "755"
+    },
+    {
       "src": "benchmark/memtier-bench.sh",
       "dst": "/usr/local/bin/memtier-bench",
       "mode": "755"
@@ -110,6 +115,11 @@
       "run": "setup-cluster-dir.sh",
       "sudo": false,
       "args": "garnet"
+    },
+    {
+      "run": "setup-ramdisk.sh",
+      "sudo": true,
+      "args": ""
     },
     {
       "run": "build.sh",
