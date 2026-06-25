@@ -64,10 +64,9 @@ op = SET, DbSize = ~1,000,000 (18519 x 54)
              (   54,       32,    1024,    512,   256): 36,554.80 Kops/sec |  8.748 GB/s data | 10.077 GB/s wire
 
 op = SET, DbSize = ~1,000,000 (166666 x 6), aof
-            (     6,      32,    1024,    64,   256): 
+            (     6,      32,    1024,    64,   256): 17,258.10 Kops/sec |  4.243 GB/s data |  4.756 GB/s wire
 op = MSET, DbSize = ~1,000,000 (166666 x 6), aof
-            (     6,      32,    1024,    64,   256): 
-
+            (     6,      32,    1024,    64,   256): 33,461.30 Kops/sec |  8.228 GB/s data |  8.674 GB/s wire
 
 +++GARNET+++
 op = GET, DbSize = ~1,000,000 (166666 x 6)
