@@ -49,8 +49,8 @@ if ($Pull) {
         $manifestPath = "$ScriptDir/manifest.json"
         $branch = $null
         if (Test-Path $manifestPath) {
-            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-            $repoEntry = $manifest.repos | Where-Object { $_.path -eq $RepoDir } | Select-Object -First 1
+            $manifestData = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            $repoEntry = $manifestData.repos | Where-Object { $_.path -eq $RepoDir } | Select-Object -First 1
             if ($repoEntry) {
                 $branch = if ($repoEntry.branch -is [array]) { $repoEntry.branch[0] } else { $repoEntry.branch }
             }
