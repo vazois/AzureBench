@@ -102,6 +102,11 @@ function Resolve-Template {
     $usesRamdisk = $tmplContent -match '/mnt/ramdisk|RAMDISK'
     $ramdiskDir = "$RAMDISK_DIR/$($Sys)-cluster"
 
+    if ($usesRamdisk) {
+        sudo mkdir -p $ramdiskDir
+        sudo chown "$($DEPLOY_USER):$($DEPLOY_USER)" $ramdiskDir
+    }
+
     for ($i = 0; $i -lt $Count; $i++) {
         $port = $BASE_PORT + $i
         $portDir = "$clusterDir/$port"
@@ -109,7 +114,7 @@ function Resolve-Template {
 
         # Create ramdisk port directory if template points there
         if ($usesRamdisk) {
-            sudo mkdir -p "$ramdiskDir/$port"
+            New-Item -ItemType Directory -Path "$ramdiskDir/$port" -Force | Out-Null
         }
 
         $content = $tmplContent
