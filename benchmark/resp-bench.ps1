@@ -206,7 +206,7 @@ foreach ($line in $serverInfoRaw) {
     }
 }
 if ($serverInfo.Count -gt 0) {
-    $serverName = $serverInfo["server_name"] ?? $serverInfo["redis_version"] ?? "unknown"
+    $serverName = $serverInfo["server_name"] ?? "unknown"
     $serverVersion = if ($serverInfo["valkey_version"]) { $serverInfo["valkey_version"] }
                      elseif ($serverInfo["redis_version"]) { $serverInfo["redis_version"] }
                      else { "?" }

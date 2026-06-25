@@ -1,0 +1,53 @@
+********CACHE*********
+
+=== Server Info ===
+  Server : 7.4.3 7.4.3
+  CPUs   : 16
+  OS     : Unix 6.6.139.1
+  Uptime : 231s
+===================
+=========== Cluster Benchmark Configuration ===========
+Mode: Offline               Client: LightClient
+Architecture: Worker Pool   Op: GET
+Threads: 16                 ITP: 1
+DB Size: 1024               Batch: 4096
+Runtime: 30s                 TLS: No
+Shards: 31                  Connections: 496 (threads x shards)
+Skip Load: No               Auth: No
+Replicas: 0                 Replica Reads: 50%
+Workers: 16                 Pipeline: Yes
+=======================================================
+=== Instance Configuration ===
+  SSH Key    : C:\Users\vazois\.ssh\id_ed12182024_desktop
+  SSH User   : guser
+  Instances  : 32 (1 x 32 hosts)
+  Workers    : 512 total (16 per instance x 32 instances)
+===============================
+=== Aggregate Results (20260618-145103) ===
+  TOTAL                                                     962,131.00 Kops/sec |  8.062 GB/s data | 24.194 GB/s wire
+================================================================================================================================
+=== Server Info ===
+  Server : 7.4.3 7.4.3
+  CPUs   : 16
+  OS     : Unix 6.6.139.1
+  Uptime : 605s
+===================
+=========== Cluster Benchmark Configuration ===========
+Mode: Offline               Client: LightClient
+Pool: Yes                   Op: SET
+Threads: 16                 ITP: 1
+DB Size: 1024               Batch: 4096
+Runtime: 30s                 TLS: No
+Shards: 31                  Connections: 496 (threads x shards)
+Skip Load: No               Auth: No
+Replicas: 0                 Replica Reads: 50%
+Workers: 16                 Pipeline: Yes
+=======================================================
+=== Instance Configuration ===
+  SSH Key    : C:\Users\vazois\.ssh\id_ed12182024_desktop
+  SSH User   : guser
+  Instances  : 32 (1 x 32 hosts)
+  Workers    : 512 total (16 per instance x 32 instances)
+===============================
+=== Aggregate Results (20260618-145720) ===
+  TOTAL                                                     671,510.10 Kops/sec |  5.628 GB/s data | 25.643 GB/s wire
