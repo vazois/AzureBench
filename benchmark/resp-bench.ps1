@@ -49,7 +49,7 @@ if ($Help) {
     Write-Host "  ValueLength      - Value length in bytes (--valuelength)"
     Write-Host "  BatchSize        - Batch size (--batchsize)"
     Write-Host "  Op               - Operation type (--op, e.g., GET, SET, MGET)"
-    Write-Host "  Pipeline         - Enable pipeline mode (true/false)"
+    Write-Host "  Broadcast        - Enable broadcast mode (true/false)"
     Write-Host "  ClusterBench     - Enable cluster bench mode (true/false)"
     Write-Host "  Pool             - Enable connection pooling (true/false, default: true)"
     Write-Host "  ExtraArgs        - Additional arguments to pass"
@@ -116,7 +116,7 @@ $keyLength    = $config["KeyLength"]    ?? ""
 $valueLength  = $config["ValueLength"]  ?? ""
 $batchSize    = $config["BatchSize"]    ?? ""
 $op           = $config["Op"]           ?? ""
-$pipeline     = $config["Pipeline"]     ?? ""
+$broadcast    = $config["Broadcast"]    ?? ""
 $clusterBench = $config["ClusterBench"] ?? "true"
 $pool         = $config["Pool"]         ?? "true"
 $extraArgs    = $config["ExtraArgs"]    ?? ""
@@ -166,8 +166,8 @@ if ($keyLength)    { $benchCmd += " --keylength $keyLength" }
 if ($valueLength)  { $benchCmd += " --valuelength $valueLength" }
 if ($batchSize)    { $benchCmd += " --batchsize $batchSize" }
 if ($op)           { $benchCmd += " --op $op" }
-if ($pipeline -eq "true") {
-    $benchCmd += " --pipeline"
+if ($broadcast -eq "true") {
+    $benchCmd += " --broadcast"
 }
 if ($clusterBench -eq "true") {
     $benchCmd += " --cluster-bench"

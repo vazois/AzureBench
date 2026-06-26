@@ -89,6 +89,7 @@ op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6)
              (     6,      32,    1024,   128,   256): 156,326.80 Kops/sec | 37.416 GB/s data | 43.097 GB/s wire
 
 op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), AOF
+32 benchmark instances (shards, threads, workers, batch, value)             
             (     6,      32,    1024,    64,   128):  44,276.50 Kops/sec |  5.606 GB/s data |  6.928 GB/s wire
             (    24,      32,    1024,    64,   128): 135,111.00 Kops/sec | 17.113 GB/s data | 21.137 GB/s wire
 
@@ -97,11 +98,14 @@ op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), AOF
             (    54,      32,    1024,    64,   256): 116,302.60 Kops/sec | 28.597 GB/s data | 32.061 GB/s wire
 
 op = MSET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), AOF
+32 benchmark instances (shards, threads, workers, batch, value)             
             (     6,      32,    1024,    64,   256): 30,706.90 Kops/sec |  7.548 GB/s data |  7.960 GB/s wire
 
 op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
+32 benchmark instances (shards, threads, workers, batch, value)             
             (     6,      32,    1024,    64,   256):  73,932.70 Kops/sec | 18.179 GB/s data | 20.382 GB/s wire                        
             (    24,      32,    1024,    64,   256): 135,885.40 Kops/sec | 33.411 GB/s data | 37.456 GB/s wire
 
 op = MSET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
+32 benchmark instances (shards, threads, workers, batch, value)             
             (     6,      32,    1024,    64,   256): 69,614.10 Kops/sec | 17.116 GB/s data | 18.044 GB/s wire
