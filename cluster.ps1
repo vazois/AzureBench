@@ -15,7 +15,6 @@
     .\cluster.ps1 -Action stop -System valkey -ICount 2
 #>
 param(
-    [Parameter(Mandatory)]
     [ValidateSet("start","stop")]
     [string]$Action,
 
@@ -34,7 +33,7 @@ param(
     [switch]$Help
 )
 
-if ($Help) {
+if ($Help -or -not $Action) {
     Write-Host "Usage: cluster.ps1 -Action <start|stop> -System <valkey|garnet> [options]"
     Write-Host ""
     Write-Host "Controls cluster lifecycle on remote VMSS server instances via SSH."
