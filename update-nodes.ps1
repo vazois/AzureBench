@@ -212,9 +212,10 @@ Write-Host "Using SSH key: $sshKey" -ForegroundColor DarkGray
 function Get-GitPull([string]$branch = '') {
     if ($Force) {
         $target = if ($branch) { "origin/$branch" } else { 'origin/$(git rev-parse --abbrev-ref HEAD)' }
-        return "git fetch --all && git reset --hard $target"
+        $fetch = "for i in 1 2 3; do git fetch --all && break || sleep 2; done"
+        return "$fetch && git reset --hard $target"
     } else {
-        return "git pull --ff-only"
+        return "for i in 1 2 3; do git pull --ff-only && break || sleep 2; done"
     }
 }
 
@@ -242,7 +243,7 @@ function Get-SshCommand {
                 "cd $($_.path) && echo '[$($_.name)]:' && $pull"
             }
 
-            $dnsRestart = "sudo systemctl restart systemd-resolved 2>/dev/null || true"
+            $dnsRestart = "sudo resolvectl flush-caches 2>/dev/null; sudo systemctl restart systemd-resolved 2>/dev/null; nslookup github.com >/dev/null 2>&1 || sleep 3"
             return "$dnsRestart; " + ($pullCommands -join '; ')
         }
 
@@ -296,7 +297,8 @@ function Get-SshCommand {
 
             $repoPath = $repoEntry.path
             $pull = Get-GitPull -branch $buildBranch
-            return "cd $repoPath && echo '[git pull]' && $pull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
+            $dnsWarmup = "nslookup github.com >/dev/null 2>&1 || sleep 3"
+            return "$dnsWarmup; cd $repoPath && echo '[git pull]' && $pull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
         }
 
         'deploy' {
@@ -332,7 +334,7 @@ foreach ($vmss in $targetVmss) {
     $ipsJson = az vmss list-instance-public-ips `
         --resource-group $rg `
         --name $vmss `
-        --query '[].{instance:name, ip:ipAddress}' -o json 2>$null
+        --query '[].{instance:name, ip:ipAddress, fqdn:dnsSettings.fqdn}' -o json 2>$null
 
     if ($LASTEXITCODE -ne 0 -or -not $ipsJson) {
         Write-Warning "Failed to get public IPs for VMSS '$vmss'. Skipping."
@@ -360,13 +362,15 @@ foreach ($vmss in $targetVmss) {
         $instance = $_
         $ip = $instance.ip
         $instanceName = $instance.instance
+        $fqdn = $instance.fqdn
 
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $outputText = ""
         $success = $false
 
         try {
-            $output = ssh -i $using:sshKey $using:sshOpts "${using:SshUser}@${ip}" $using:sshCommand 2>&1
+            $dnsCmd = "sudo systemctl restart systemd-resolved 2>/dev/null; "
+            $output = ssh -i $using:sshKey $using:sshOpts "${using:SshUser}@${ip}" "$dnsCmd$($using:sshCommand)" 2>&1
             $exitCode = $LASTEXITCODE
             $outputText = $output -join "`n"
             $success = ($exitCode -eq 0)
@@ -384,6 +388,7 @@ foreach ($vmss in $targetVmss) {
             Vmss     = $using:vmss
             Instance = $instanceName
             IP       = $ip
+            FQDN     = $fqdn
             Success  = $success
             Output   = $outputText
             Duration = $duration
@@ -403,7 +408,8 @@ foreach ($vmss in $targetVmss) {
     if ($pFailed -gt 0) {
         Write-Host "  Failed:" -ForegroundColor Red
         $results | Where-Object { -not $_.Success } | ForEach-Object {
-            Write-Host "    $($_.Instance) ($($_.IP)) [$($_.Duration)]" -ForegroundColor Red
+            $label = if ($_.FQDN) { $_.FQDN } else { $_.Instance }
+            Write-Host "    $label ($($_.IP)) [$($_.Duration)]" -ForegroundColor Red
         }
     }
 
@@ -415,7 +421,8 @@ foreach ($vmss in $targetVmss) {
         foreach ($r in $results) {
             $idx++
             $color = if ($r.Success) { 'Green' } else { 'Red' }
-            Write-Host "  $idx/$totalInstances >>> $($r.Instance) ($($r.IP)) [$($r.Duration)]" -ForegroundColor $color
+            $label = if ($r.FQDN) { $r.FQDN } else { $r.Instance }
+            Write-Host "  $idx/$totalInstances >>> $label ($($r.IP)) [$($r.Duration)]" -ForegroundColor $color
             if ($r.Output) {
                 $r.Output -split "`n" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
             }
@@ -441,7 +448,8 @@ Write-Host "  Failed:  $failCount" -ForegroundColor $(if ($failCount -gt 0) { 'R
 if ($failCount -gt 0) {
     Write-Host "`nFailed instances:"
     $allResults | Where-Object { -not $_.Success } | ForEach-Object {
-        Write-Host "  $($_.Vmss)/$($_.Instance) ($($_.IP))" -ForegroundColor Red
+        $label = if ($_.FQDN) { $_.FQDN } else { "$($_.Vmss)/$($_.Instance)" }
+        Write-Host "  $label ($($_.IP))" -ForegroundColor Red
     }
 }
 
