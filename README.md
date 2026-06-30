@@ -2,7 +2,36 @@
 
 Automated deployment of benchmarking environments on Azure using VMSS (Virtual Machine Scale Sets).
 
-## Setup Steps
+## Quick Start
+
+```powershell
+# 1. Deploy infrastructure (network + keys + VMSS)
+.\deploy-network-resources.ps1                          # creates NSG, VNet, proximity group
+.\deploy-keys.ps1                                       # configures SSH keys + Key Vault
+
+# 2. Deploy server and client VMSS
+az deployment group create --resource-group <rg> --template-file vmss.bicep `
+  --parameters @vmss-parameters.json --parameters vmssName=<server-name> instanceCount=<n>
+az deployment group create --resource-group <rg> --template-file vmss.bicep `
+  --parameters @vmss-parameters.json --parameters vmssName=<client-name> instanceCount=<n>
+
+# 3. Start cluster on server VMs
+.\cluster.ps1 -Action start -System valkey -Template cache -ICount 2 -Clean
+
+# 4. Run benchmark from client VMs
+.\benchmark\resp-bench.ps1
+```
+
+**What you need:**
+- 2 VMSS groups: servers (run the storage system) and clients (run the benchmark workload)
+- All VMs share an accelerated networking subnet for low-latency data traffic
+- A management subnet with public IPs for SSH access from your desktop
+
+**Workflow:** Deploy infra → provision VMs → start cluster → run benchmark → collect results.
+
+---
+
+## Detailed Setup
 
 ### 1. Prerequisites
 
