@@ -134,12 +134,12 @@ The `benchmark/` folder contains the benchmark launcher and its configuration:
 ```ini
 # SSH connection
 SshUser=guser
-SshHost=[vm0.myclient.southcentralus.cloudapp.azure.com]
-HostCount=12            # number of VM instances (vm0..vm11)
+ClientMachineHostnames=[vm0.myclient.southcentralus.cloudapp.azure.com]
+ClientMachineCount=12   # number of VM instances (vm0..vm11)
 Multiplier=1            # benchmark instances per VM
 
 # Benchmark parameters
-Host=10.5.1.4           # target server IP
+Server=10.5.1.4         # target server IP
 Port=7000
 Threads=16
 Runtime=60
@@ -147,8 +147,8 @@ ClusterBench=true
 
 # Optional workload tuning
 # Op=SET                # operation type (GET, SET, MGET, MSET)
-# Pool=false            # connection pool per worker
-# Pipeline=false        # pipelined requests
+# Pool=true             # connection pool per worker
+# Broadcast=false       # broadcast requests across pool
 # DbSize=1000000
 # KeyLength=16
 # ValueLength=128
@@ -259,3 +259,17 @@ Pushes new SSH keys to running VMs without redeployment.
 | `deploy-network-resources.ps1` | Network deployment + param generation |
 | `update-nodes.ps1` | SSH-based repo refresh, system rebuild, and initialization |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |
+
+## Notes
+
+### Region / Location Handling
+
+No script requires a standalone `-Location` parameter. The region is determined once and propagated:
+
+| Script | Behavior |
+|--------|----------|
+| `deploy-network-resources.ps1` | Prompts for region only when creating a **new** resource group; otherwise reads it from the existing RG via `az group show` |
+| `deploy-keys.ps1` | Reads location from the resource group — never prompts |
+| `vmss.bicep` | Receives `location` from `vmss-parameters.json` (written by `deploy-network-resources.ps1`) |
+
+In short: set the region when you create the resource group and everything else inherits it automatically.
