@@ -2,10 +2,11 @@
 [CmdletBinding()]
 <#
 .SYNOPSIS
-    Updates and rebuilds software on VMSS nodes via SSH.
+    Manages VMSS nodes: SSH-based software updates plus power (start/stop) operations.
 
 .DESCRIPTION
     Connects to VMSS instances via SSH to refresh repos, rebuild systems, or re-run initialization.
+    Also performs Azure power operations (start / deallocate) on entire VMSS.
     Supports multiple VMSS in a resource group with auto-discovery and validation.
 
 .PARAMETER rg
@@ -21,6 +22,9 @@
     - rebuild: git pull + rebuild specified system (requires -System)
     - deploy: git pull AzureBench + run full deployment workflow
     - install: git pull AzureBench + copy scripts only
+    - start: power on all instances in the VMSS (az vmss start)
+    - stop: deallocate all instances in the VMSS, stopping compute billing (az vmss deallocate)
+    - restart: restart all instances in the VMSS (az vmss restart)
 
 .PARAMETER System
     System to rebuild (required when Action=rebuild).
@@ -31,16 +35,25 @@
 
 .EXAMPLE
     # List VMSS and prompt for selection, then refresh all repos
-    .\update-nodes.ps1 -rg vazois-garnet
+    .\manage-vmss.ps1 -rg vazois-garnet
 
     # Refresh specific VMSS
-    .\update-nodes.ps1 -rg vazois-garnet -VmssName server
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server
 
     # Rebuild garnet on multiple VMSS
-    .\update-nodes.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
 
     # Verbose output (show per-instance command output)
-    .\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System garnet -Verbose
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System garnet -Verbose
+
+    # Power on a VMSS
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action start
+
+    # Deallocate (stop billing for) a VMSS
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action stop
+
+    # Restart only the failed instances in a VMSS
+    .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action restart
 #>
 
 param(
@@ -48,7 +61,7 @@ param(
 
     [string]$VmssName,
 
-    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping')]
+    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping', 'start', 'stop', 'restart')]
     [string]$Action = 'refresh',
 
     [ValidateSet('garnet', 'valkey', 'resp-bench', 'memtier')]
@@ -62,9 +75,9 @@ param(
 )
 
 if ($Help -or -not $rg) {
-    Write-Host "Usage: update-nodes.ps1 -rg <resource-group> [options]" -ForegroundColor Cyan
+    Write-Host "Usage: manage-vmss.ps1 -rg <resource-group> [options]" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Updates and rebuilds software on VMSS nodes via SSH."
+    Write-Host "Manages VMSS nodes: SSH software updates plus power (start/stop) operations."
     Write-Host ""
     Write-Host "Required Parameters:"
     Write-Host "  -rg <name>          Azure resource group name"
@@ -77,6 +90,9 @@ if ($Help -or -not $rg) {
     Write-Host "                      rebuild        - git pull + rebuild system (requires -System)"
     Write-Host "                      deploy         - git pull + run full deployment workflow"
     Write-Host "                      install        - git pull + copy scripts only"
+    Write-Host "                      start          - power on all VMSS instances (az vmss start)"
+    Write-Host "                      stop           - deallocate all VMSS instances (az vmss deallocate)"
+    Write-Host "                      restart        - restart only failed instances (az vmss restart)"
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
@@ -85,11 +101,14 @@ if ($Help -or -not $rg) {
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  .\update-nodes.ps1 -rg vazois-garnet"
-    Write-Host "  .\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System garnet"
-    Write-Host "  .\update-nodes.ps1 -rg vazois-garnet -VmssName server,client -Action refresh"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System garnet"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server,client -Action refresh"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action start"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action stop"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action restart"
     Write-Host ""
-    Write-Host "For detailed help: Get-Help .\update-nodes.ps1 -Detailed"
+    Write-Host "For detailed help: Get-Help .\manage-vmss.ps1 -Detailed"
     Write-Host ""
     return
 }
@@ -99,6 +118,42 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # --- Load shared utilities ---
 . "$scriptDir\benchmark\utils.ps1"
+
+# Returns a synchronized hashtable mapping VMSS name -> power-state summary
+# (e.g. "running: 6" or "running: 4, deallocated: 2"). Queries all VMSS in
+# parallel for speed. Value is "unknown" if a query fails, "no instances" if empty.
+function Get-VmssPowerStates {
+    param([string]$ResourceGroup, [string[]]$VmssNames)
+
+    $map = [hashtable]::Synchronized(@{})
+
+    $VmssNames | ForEach-Object -Parallel {
+        $name = $_
+        $summary = 'unknown'
+        $codesJson = az vmss list-instances `
+            --resource-group $using:ResourceGroup `
+            --name $name `
+            --expand instanceView `
+            --query "[].instanceView.statuses[?starts_with(code, 'PowerState')].code | []" -o json 2>$null
+
+        if ($LASTEXITCODE -eq 0 -and $null -ne $codesJson) {
+            $codes = @($codesJson | ConvertFrom-Json)
+            if ($codes.Count -eq 0) {
+                $summary = 'no instances'
+            } else {
+                $summary = ($codes |
+                    ForEach-Object { $_ -replace 'PowerState/', '' } |
+                    Group-Object |
+                    Sort-Object Name |
+                    ForEach-Object { "$($_.Name): $($_.Count)" }) -join ', '
+            }
+        }
+
+        ($using:map)[$name] = $summary
+    } -ThrottleLimit 16
+
+    return $map
+}
 
 # Validate Action and System parameter combination
 if ($Action -eq 'rebuild' -and -not $System) {
@@ -128,11 +183,37 @@ $targetVmss = @()
 if (-not $VmssName) {
     # Prompt user to select
     Write-Host "`nAvailable VMSS:"
-    for ($i = 0; $i -lt $allVmssInfo.Count; $i++) {
-        $state = $allVmssInfo[$i].state
-        $stateColor = if ($state -eq 'Succeeded') { 'Green' } else { 'Yellow' }
-        Write-Host "  [$i] $($allVmssInfo[$i].name) " -NoNewline
-        Write-Host "($state)" -ForegroundColor $stateColor
+    Write-Host "  (querying power state...)" -ForegroundColor DarkGray
+    $powerMap = Get-VmssPowerStates -ResourceGroup $rg -VmssNames $allVmss
+
+    # Build rows and compute column widths for aligned table output
+    $rows = for ($i = 0; $i -lt $allVmssInfo.Count; $i++) {
+        [PSCustomObject]@{
+            Idx   = "[$i]"
+            Name  = $allVmssInfo[$i].name
+            Prov  = $allVmssInfo[$i].state
+            Power = $powerMap[$allVmssInfo[$i].name]
+        }
+    }
+
+    $wIdx   = [Math]::Max('#'.Length, (($rows | ForEach-Object { $_.Idx.Length }   | Measure-Object -Maximum).Maximum))
+    $wName  = [Math]::Max('NAME'.Length, (($rows | ForEach-Object { $_.Name.Length }  | Measure-Object -Maximum).Maximum))
+    $wProv  = [Math]::Max('PROVISIONING'.Length, (($rows | ForEach-Object { $_.Prov.Length }  | Measure-Object -Maximum).Maximum))
+    $wPower = [Math]::Max('POWER'.Length, (($rows | ForEach-Object { "$($_.Power)".Length } | Measure-Object -Maximum).Maximum))
+
+    $header = "  {0}  {1}  {2}  {3}" -f `
+        '#'.PadRight($wIdx), 'NAME'.PadRight($wName), 'PROVISIONING'.PadRight($wProv), 'POWER'.PadRight($wPower)
+    Write-Host $header -ForegroundColor Cyan
+    Write-Host ("  {0}  {1}  {2}  {3}" -f `
+        ('-' * $wIdx), ('-' * $wName), ('-' * $wProv), ('-' * $wPower)) -ForegroundColor DarkGray
+
+    foreach ($row in $rows) {
+        $provColor  = if ($row.Prov -eq 'Succeeded') { 'Green' } elseif ($row.Prov -eq 'Failed') { 'Red' } else { 'Yellow' }
+        $powerColor = if ($row.Power -match 'running') { 'Green' } elseif ($row.Power -match 'deallocated|stopped') { 'DarkGray' } else { 'Yellow' }
+        Write-Host ("  {0}  {1}  " -f $row.Idx.PadRight($wIdx), $row.Name.PadRight($wName)) -NoNewline
+        Write-Host $row.Prov.PadRight($wProv) -NoNewline -ForegroundColor $provColor
+        Write-Host '  ' -NoNewline
+        Write-Host $row.Power.PadRight($wPower) -ForegroundColor $powerColor
     }
     Write-Host ""
     $selection = Read-Host "Select VMSS (comma-separated indices/names, or 'all')"
@@ -181,6 +262,149 @@ if ($targetVmss.Count -eq 0) {
 }
 
 Write-Host "Target VMSS: $($targetVmss -join ', ')" -ForegroundColor Green
+
+# --- Power Operations (start / stop / restart) ---
+# start/stop/restart are Azure control-plane operations. They do not use SSH,
+# instance IPs, or the parallel SSH loop. Executed concurrently across the
+# selected VMSS, then summarized. restart targets only failed instances.
+if ($Action -in 'start', 'stop', 'restart') {
+    $verbLabel = switch ($Action) {
+        'start'   { 'Starting' }
+        'stop'    { 'Deallocating' }
+        'restart' { 'Restarting failed instances in' }
+    }
+
+    Write-Host "`n=== Power Operation: $verbLabel VMSS ===" -ForegroundColor Cyan
+    Write-Host "  (running across $($targetVmss.Count) VMSS in parallel...)" -ForegroundColor DarkGray
+
+    $powerStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    $powerResults = $targetVmss | ForEach-Object -Parallel {
+        $vmss = $_
+        $action = $using:Action
+        $rg = $using:rg
+
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $success = $false
+        $detail = ''
+        $skipped = $false
+
+        if ($action -eq 'restart') {
+            # Identify unhealthy instances, then restart only those. An instance is
+            # considered failed if any of these hold:
+            #   - top-level provisioningState == 'Failed'
+            #   - its instanceView has an Error-level status
+            #   - an extension reports no status (agent not reporting) or a 'failed' code
+            $instJson = az vmss list-instances --resource-group $rg --name $vmss `
+                --expand instanceView -o json 2>$null
+
+            if ($LASTEXITCODE -ne 0 -or -not $instJson) {
+                $detail = 'failed to list instances'
+            } else {
+                $instances = @($instJson | ConvertFrom-Json)
+
+                $failed = @(foreach ($inst in $instances) {
+                    $isFailed = $false
+
+                    if ($inst.provisioningState -eq 'Failed') { $isFailed = $true }
+
+                    $iv = $inst.instanceView
+                    if (-not $isFailed -and $iv.statuses) {
+                        if ($iv.statuses | Where-Object { $_.level -eq 'Error' }) { $isFailed = $true }
+                    }
+
+                    if (-not $isFailed -and $iv.extensions) {
+                        foreach ($ext in $iv.extensions) {
+                            if (-not $ext.statuses -or ($ext.statuses | Where-Object { $_.code -match 'failed' })) {
+                                $isFailed = $true
+                                break
+                            }
+                        }
+                    }
+
+                    if ($isFailed) { $inst.instanceId }
+                })
+
+                if ($failed.Count -eq 0) {
+                    $success = $true
+                    $skipped = $true
+                    $detail = 'no failed/unhealthy instances'
+                } else {
+                    # Map instance IDs -> FQDNs for a friendlier informational message
+                    $fqdnMap = @{}
+                    $ipsJson = az vmss list-instance-public-ips --resource-group $rg --name $vmss `
+                        --query "[].{fqdn:dnsSettings.fqdn, id:id}" -o json 2>$null
+                    if ($LASTEXITCODE -eq 0 -and $ipsJson) {
+                        foreach ($p in @($ipsJson | ConvertFrom-Json)) {
+                            if ($p.id -match '/virtualMachines/(\d+)/') { $fqdnMap[$matches[1]] = $p.fqdn }
+                        }
+                    }
+                    $labels = $failed | ForEach-Object { if ($fqdnMap[$_]) { $fqdnMap[$_] } else { "instance $_" } }
+
+                    Write-Host "  [$vmss] restarting $($failed.Count) failed/unhealthy instance(s):" -ForegroundColor Yellow
+                    $labels | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
+
+                    # Fire-and-forget: --no-wait returns immediately instead of blocking
+                    # on the restart LRO (instances with a non-reporting agent may never
+                    # converge, which would otherwise hang the command).
+                    $output = az vmss restart --resource-group $rg --name $vmss --instance-ids $failed --no-wait 2>&1
+                    $success = ($LASTEXITCODE -eq 0)
+                    $detail = "restart requested for: $($labels -join ', ')"
+                    if (-not $success) { $detail += " | $($output -join ' ')" }
+                }
+            }
+        } else {
+            $azVerb = if ($action -eq 'start') { 'start' } else { 'deallocate' }
+            $output = az vmss $azVerb --resource-group $rg --name $vmss 2>&1
+            $success = ($LASTEXITCODE -eq 0)
+            if (-not $success) { $detail = ($output -join ' ') }
+        }
+
+        $sw.Stop()
+
+        [PSCustomObject]@{
+            Vmss     = $vmss
+            Success  = $success
+            Skipped  = $skipped
+            Detail   = $detail
+            Duration = $sw.Elapsed.ToString('mm\:ss\.ff')
+        }
+    } -ThrottleLimit $targetVmss.Count
+
+    $powerStopwatch.Stop()
+
+    # Per-VMSS report
+    foreach ($r in ($powerResults | Sort-Object Vmss)) {
+        if ($r.Success -and $r.Skipped) {
+            Write-Host "  $($r.Vmss): $($r.Detail) [$($r.Duration)]" -ForegroundColor DarkGray
+        } elseif ($r.Success) {
+            $suffix = if ($r.Detail) { " ($($r.Detail))" } else { '' }
+            Write-Host "  $($r.Vmss): done$suffix [$($r.Duration)]" -ForegroundColor Green
+        } else {
+            Write-Host "  $($r.Vmss): FAILED [$($r.Duration)]" -ForegroundColor Red
+            if ($r.Detail) { Write-Host "    $($r.Detail)" -ForegroundColor DarkGray }
+        }
+    }
+
+    $pOk = ($powerResults | Where-Object { $_.Success }).Count
+    $pFail = $powerResults.Count - $pOk
+
+    Write-Host "`n=== Summary ===" -ForegroundColor Cyan
+    Write-Host "Elapsed: $($powerStopwatch.Elapsed.ToString('mm\:ss\.ff'))" -ForegroundColor DarkGray
+    Write-Host "Total VMSS: $($powerResults.Count)"
+    Write-Host "  Success: $pOk" -ForegroundColor Green
+    Write-Host "  Failed:  $pFail" -ForegroundColor $(if ($pFail -gt 0) { 'Red' } else { 'Gray' })
+
+    if ($pFail -gt 0) {
+        Write-Host "`nFailed VMSS:"
+        $powerResults | Where-Object { -not $_.Success } | ForEach-Object {
+            Write-Host "  $($_.Vmss)" -ForegroundColor Red
+        }
+    }
+
+    Write-Host ""
+    exit $(if ($pFail -gt 0) { 1 } else { 0 })
+}
 
 # --- SSH Key Resolution ---
 $sshKey = $null

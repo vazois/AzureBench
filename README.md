@@ -218,9 +218,9 @@ The script:
   TOTAL              2,222.21 Kops/sec |  0.830 GB/s data |  0.960 GB/s wire
 ```
 
-### 7. Update Nodes (Refresh Repos, Rebuild Systems)
+### 7. Manage Nodes (Refresh Repos, Rebuild Systems, Power On/Off)
 
-SSH into VMSS instances to refresh repositories, rebuild systems, or re-run initialization workflows.
+SSH into VMSS instances to refresh repositories, rebuild systems, or re-run initialization workflows, or perform Azure power operations (start/stop) on entire VMSS.
 
 #### Actions
 
@@ -230,33 +230,45 @@ SSH into VMSS instances to refresh repositories, rebuild systems, or re-run init
 | `rebuild` | Git pull + rebuild specified system (requires `-System` parameter) |
 | `deploy` | Git pull AzureBench + run full deployment workflow from scratch |
 | `install` | Git pull AzureBench + copy scripts to system paths only |
+| `start` | Power on all VMSS instances (`az vmss start`) |
+| `stop` | Deallocate all VMSS instances, stopping compute billing (`az vmss deallocate`) |
+| `restart` | Restart only the failed instances in each VMSS (`az vmss restart --instance-ids`) |
 
 #### Examples
 
 ```powershell
 # List VMSS in resource group and prompt for selection, then refresh all repos
-.\update-nodes.ps1 -rg vazois-garnet
+.\manage-vmss.ps1 -rg vazois-garnet
 
 # Refresh repos on specific VMSS
-.\update-nodes.ps1 -rg vazois-garnet -VmssName server
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server
 
 # Rebuild garnet on multiple VMSS (pulls main, builds, installs to /usr/local/bin)
-.\update-nodes.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server,client -Action rebuild -System garnet
 
 # Rebuild valkey with specific version (uses args from manifest.json: "valkey 9.0")
-.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System valkey
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action rebuild -System valkey
 
 # Run full deployment workflow from scratch on all VMSS
-.\update-nodes.ps1 -rg vazois-garnet -VmssName all -Action deploy
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName all -Action deploy
 
 # Update scripts only (no rebuild)
-.\update-nodes.ps1 -rg vazois-garnet -VmssName server -Action install
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action install
+
+# Power on a VMSS
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action start
+
+# Deallocate a VMSS (stops compute billing)
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action stop
+
+# Restart only the failed instances across all VMSS
+.\manage-vmss.ps1 -rg vazois-garnet -VmssName all -Action restart
 
 # Refresh repos
-pwsh .\update-nodes.ps1 --action refresh --rg garnet-bench --verbose --force
+pwsh .\manage-vmss.ps1 --action refresh --rg garnet-bench --verbose --force
 
 # install scripts
-pwsh .\update-nodes.ps1 --action install --rg garnet-bench --verbose --force
+pwsh .\manage-vmss.ps1 --action install --rg garnet-bench --verbose --force
 
 ```
 
@@ -265,6 +277,8 @@ pwsh .\update-nodes.ps1 --action install --rg garnet-bench --verbose --force
 - Supports multiple VMSS: `-VmssName server,client` or `-VmssName all`
 - SSH keys automatically resolved from `security/manifest.json` (userKeys)
 - Results reported per-instance with success/failure summary
+- The interactive selection prompt (omit `-VmssName`) lists every VMSS with its power state (e.g. `running: 62`, `deallocated: 25`)
+- `start` / `stop` / `restart` run concurrently across the selected VMSS; `restart` only targets instances in a `Failed` provisioning state
 
 ### 8. Update Keys on Live VMSS (Optional)
 
@@ -286,7 +300,7 @@ Pushes new SSH keys to running VMs without redeployment.
 | `cluster.ps1` | Cluster lifecycle management (start/stop via SSH) |
 | `deploy-keys.ps1` | Key sync, Key Vault deployment, and live update |
 | `deploy-network-resources.ps1` | Network deployment + param generation |
-| `update-nodes.ps1` | SSH-based repo refresh, system rebuild, and initialization |
+| `manage-vmss.ps1` | SSH-based repo refresh, system rebuild, initialization, and VMSS power (start/stop) |
 | `cloud-config-azurelinux.yml` | Linux VM provisioning (cloud-init) |
 
 ## Notes
