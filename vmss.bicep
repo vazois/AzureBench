@@ -66,6 +66,13 @@ param vmFamily string
 })
 param vmCores int
 
+@description('Availability zone strategy: "single" pins all instances to zone 1 and uses a Proximity Placement Group for lowest inter-node latency; "all" spreads instances across zones 1, 2 and 3 for higher resilience/capacity (no PPG, since a PPG requires a single zone).')
+@allowed([
+  'single'
+  'all'
+])
+param zoneStrategy string = 'single'
+
 // Extract the actual family name by splitting on ':'
 // e.g. 'Dps_v6: [32, 48, 64, 96]' → 'Dps_v6'
 var familyName = split(vmFamily, ':')[0]
@@ -241,7 +248,8 @@ var installSoftwareScriptBase64 = base64(loadTextContent('install-software.ps1')
 ////////////////////// NETWORK CONFIG OPTIONS //////////////////////////
 var publicIPAddressName = '${vmssName}-PublicIP'
 var dnsLabelPrefix = vmssName
-var zones = ['1']
+var zones = zoneStrategy == 'all' ? ['1', '2', '3'] : ['1']
+var useProximityGroup = zoneStrategy == 'single'
 var nicName = '${vmssName}-nic'
 var accNicName = '${vmssName}-acc-nic'
 // var dataSubnetName = vmssRole == 'server' ? accSubnetName : clientSubnetName
@@ -346,9 +354,9 @@ resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (
         enableAutomaticOSUpgrade: true
       }
     }
-    proximityPlacementGroup: {
+    proximityPlacementGroup: useProximityGroup ? {
       id: proximityId
-    }
+    } : null
     virtualMachineProfile: {
       osProfile: {
         computerNamePrefix: vmssName
@@ -424,9 +432,9 @@ resource windowsVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if
     upgradePolicy: {
       mode: 'Automatic'
     }
-    proximityPlacementGroup: {
+    proximityPlacementGroup: useProximityGroup ? {
       id: proximityId
-    }
+    } : null
     virtualMachineProfile: {
       osProfile: {
         computerNamePrefix: substring(computerName, 0, 9)

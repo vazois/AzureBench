@@ -13,10 +13,13 @@ param accSubnetName string
 param clientSubnetName string
 param proximityGroupName string
 
+// /16 VNet carved into three /18 subnets (~16,379 usable IPs each) to support
+// thousands of VMs. Each VM consumes one IP in subnetName (primary NIC + public IP)
+// and one in accSubnetName (eth1 / accelerated-networking NIC).
 var addressPrefix = '10.5.0.0/16'
-var subnetAddressPrefix = '10.5.0.0/24'
-var accSubnetAddressPrefix = '10.5.1.0/24'
-var clientSubnetAddressPrefix = '10.5.2.0/24'
+var subnetAddressPrefix = '10.5.0.0/18'       // 10.5.0.0   - 10.5.63.255
+var accSubnetAddressPrefix = '10.5.64.0/18'   // 10.5.64.0  - 10.5.127.255
+var clientSubnetAddressPrefix = '10.5.128.0/18' // 10.5.128.0 - 10.5.191.255
 
 // Network Security Group — shared by both subnets
 resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {

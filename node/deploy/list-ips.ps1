@@ -52,36 +52,42 @@ $headers = @{
     "Content-Type" = "application/json"
 }
 
-# List VMSS instances
-$instancesUri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/$vmssName/virtualMachines?api-version=2024-03-01"
-$instances = Invoke-RestMethod -Uri $instancesUri -Headers $headers -TimeoutSec 30
+# Follow ARM paging (nextLink) so we don't stop at the first ~100 results.
+function Get-ArmPagedValues {
+    param([string]$Uri, [hashtable]$Headers, [int]$TimeoutSec = 30)
+    $all = @()
+    $next = $Uri
+    while ($next) {
+        $page = Invoke-RestMethod -Uri $next -Headers $Headers -TimeoutSec $TimeoutSec
+        if ($page.value) { $all += $page.value }
+        $next = $page.nextLink
+    }
+    return $all
+}
 
-# For each instance, get the accelerated NIC IP
+# List all NICs across the whole VMSS in one paged call (avoids a per-instance
+# REST round-trip, which is unusable at thousands of instances).
+$nicsUri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/$vmssName/networkInterfaces?api-version=2022-11-01"
+$nics = Get-ArmPagedValues -Uri $nicsUri -Headers $headers -TimeoutSec 30
+
 $results = @()
-foreach ($vm in $instances.value) {
-    $instanceId = $vm.instanceId
-    $vmName = $vm.name
+foreach ($nic in $nics) {
+    $isAccNic = $false
+    if ($NicName) {
+        $isAccNic = $nic.name -eq $NicName
+    } else {
+        # Auto-detect: pick the NIC that is not primary or has an acc-style name.
+        $isAccNic = ($nic.properties.primary -eq $false) -or ($nic.name -like "*acc*")
+    }
 
-    # List NICs for this instance
-    $nicsUri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/$vmssName/virtualMachines/$instanceId/networkInterfaces?api-version=2022-11-01"
-    $nics = Invoke-RestMethod -Uri $nicsUri -Headers $headers -TimeoutSec 15
-
-    foreach ($nic in $nics.value) {
-        $isAccNic = $false
-        if ($NicName) {
-            $isAccNic = $nic.name -eq $NicName
-        } else {
-            # Auto-detect: pick the NIC that is not primary or has accelerated networking
-            $isAccNic = ($nic.properties.primary -eq $false) -or ($nic.name -like "*acc*")
-        }
-
-        if ($isAccNic) {
-            $ip = $nic.properties.ipConfigurations[0].properties.privateIPAddress
-            $results += [PSCustomObject]@{
-                Instance = $instanceId
-                Name     = $vmName
-                IP       = $ip
-            }
+    if ($isAccNic) {
+        # NIC id path: .../virtualMachines/<instanceId>/networkInterfaces/<nic>
+        $instanceId = if ($nic.id -match '/virtualMachines/(\d+)/') { $matches[1] } else { '' }
+        $ip = $nic.properties.ipConfigurations[0].properties.privateIPAddress
+        $results += [PSCustomObject]@{
+            Instance = $instanceId
+            Name     = $nic.name
+            IP       = $ip
         }
     }
 }

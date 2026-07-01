@@ -104,8 +104,65 @@ function Get-SubnetIps {
     return $ips
 }
 
+# Enumerate this VMSS's eth1 (accelerated / non-primary) NIC IPs directly from the
+# Azure API using the VM's managed identity. This scales to thousands of instances
+# and replaces the brute-force subnet scan (which would probe ~16k IPs on a /18).
+# Returns $null on any failure so callers can fall back to the subnet scan.
+function Get-PeersFromAzure {
+    param([string]$OwnIp)
+    try {
+        $metaUri = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+        $meta = Invoke-RestMethod -Uri $metaUri -Headers @{ Metadata = "true" } -TimeoutSec 5
+        $subscriptionId = $meta.compute.subscriptionId
+        $resourceGroup  = $meta.compute.resourceGroupName
+        $vmssName       = $meta.compute.vmScaleSetName
+        if (-not $vmssName) { return $null }
+
+        $tokenUri = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+        $tokenResp = Invoke-RestMethod -Uri $tokenUri -Headers @{ Metadata = "true" } -TimeoutSec 5
+        $headers = @{ Authorization = "Bearer $($tokenResp.access_token)"; "Content-Type" = "application/json" }
+
+        # VMSS-level NIC list, following nextLink paging.
+        $nicsUri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/$vmssName/networkInterfaces?api-version=2022-11-01"
+        $nics = @()
+        $next = $nicsUri
+        while ($next) {
+            $page = Invoke-RestMethod -Uri $next -Headers $headers -TimeoutSec 30
+            if ($page.value) { $nics += $page.value }
+            $next = $page.nextLink
+        }
+
+        $ips = @()
+        foreach ($nic in $nics) {
+            if (($nic.properties.primary -eq $false) -or ($nic.name -like "*acc*")) {
+                $ip = $nic.properties.ipConfigurations[0].properties.privateIPAddress
+                if ($ip) { $ips += $ip }
+            }
+        }
+        if (-not $ips) { return $null }
+
+        # Self first, then the remaining peers in stable IP order.
+        $others = $ips | Where-Object { $_ -ne $OwnIp } |
+            Sort-Object { [version]($_ -replace '(\d+)\.(\d+)\.(\d+)\.(\d+)', '$1.$2.$3.$4') }
+        return @($OwnIp) + $others
+    } catch {
+        return $null
+    }
+}
+
 function Find-Peers {
     param([string]$OwnIp, [int]$Prefix, [string]$SshUser, [int]$Timeout)
+
+    # Preferred path: enumerate real VMSS instance IPs via the Azure API (scales to
+    # thousands; all returned NICs belong to this VMSS so no family filtering needed).
+    Write-Host "Discovering peers via Azure API (managed identity)..." -ForegroundColor Yellow
+    $apiPeers = Get-PeersFromAzure -OwnIp $OwnIp
+    if ($apiPeers) {
+        Write-Host "  Found $($apiPeers.Count) peer(s) via Azure API (including self)." -ForegroundColor Green
+        return $apiPeers
+    }
+
+    Write-Host "  Azure API unavailable; falling back to subnet scan." -ForegroundColor DarkYellow
     Write-Host "Discovering peers on eth1 subnet ($OwnIp/$Prefix)..." -ForegroundColor Yellow
 
     # Get local VMSS prefix to filter out VMs from other scale sets
