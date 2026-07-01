@@ -102,6 +102,22 @@ var securityProfileConfig = supportsTrustedLaunch
 ])
 param diskCaching string = 'ReadWrite'
 
+@description('Optional data disk size in GB. Set to 0 to skip attaching a data disk.')
+param dataDiskSizeGB int = 0
+
+@description('Storage type for the data disk.')
+@allowed([
+  'Premium_LRS'
+  'UltraSSD_LRS'
+])
+param dataDiskType string = 'UltraSSD_LRS'
+
+@description('IOPS for the data disk (Ultra SSD only, ignored for Premium).')
+param dataDiskIOPS int = 4000
+
+@description('Throughput in MB/s for the data disk (Ultra SSD only, ignored for Premium).')
+param dataDiskMBps int = 125
+
 param adminUsername string = 'guser'
 @description('Windows computer name prefix. Used only when operatingSystem = windows.')
 param computerName string = vmssName
@@ -189,6 +205,19 @@ var storageProfileConfig = {
     sku: selectedImage.sku
     version: selectedImage.version
   }
+  dataDisks: dataDiskSizeGB > 0 ? [
+    {
+      lun: 0
+      createOption: 'Empty'
+      diskSizeGB: dataDiskSizeGB
+      managedDisk: {
+        storageAccountType: dataDiskType
+      }
+      caching: 'None'
+      diskIOPSReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskIOPS : null
+      diskMBpsReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskMBps : null
+    }
+  ] : []
 }
 ///////////////////////////////////////////////////////
 
@@ -308,6 +337,9 @@ resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (
   properties: {
     overprovision: false
     singlePlacementGroup: true
+    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0 ? {
+      ultraSSDEnabled: true
+    } : null
     upgradePolicy: {
       mode: 'Automatic'
       automaticOSUpgradePolicy: {
@@ -386,6 +418,9 @@ resource windowsVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if
   properties: {
     overprovision: false
     singlePlacementGroup: true
+    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0 ? {
+      ultraSSDEnabled: true
+    } : null
     upgradePolicy: {
       mode: 'Automatic'
     }
@@ -449,7 +484,7 @@ resource windowsVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if
   }
 }
 
-resource linuxGuestConfigExtension 'Microsoft.Compute/virtualMachineScaleSets/extensions@2020-12-01' = if (operatingSystem == 'linux') {
+resource linuxGuestConfigExtension 'Microsoft.Compute/virtualMachineScaleSets/extensions@2020-12-01' = if (operatingSystem == 'linux' && supportsTrustedLaunch) {
   parent: linuxVmss
   name: 'AzurePolicyforLinux'
   properties: {

@@ -105,8 +105,16 @@ if (Test-Path $manifestPath) {
 }
 $sshUser         = $config["SshUser"]         ?? "guser"
 $sshHostBase     = $config["ClientMachineHostnames"] ?? "vm0.dps8v6vmss.southcentralus.cloudapp.azure.com"
-$hostCount       = [int]($config["ClientMachineCount"] ?? "1")
+$hostCountRaw    = $config["ClientMachineCount"] ?? "1"
 $multiplier      = [int]($config["Multiplier"] ?? "1")
+
+# Parse ClientMachineCount — supports scalar or array [n1, n2, ...]
+$hostCounts = @()
+if ($hostCountRaw -match '^\[(.+)\]$') {
+    $hostCounts = $Matches[1] -split ',\s*' | ForEach-Object { [int]$_ }
+} else {
+    $hostCounts = @([int]$hostCountRaw)
+}
 $benchHost    = $config["Server"]       ?? "10.5.1.4"
 $benchPort    = $config["Port"]         ?? "7000"
 $threads      = $config["Threads"]      ?? "4"
@@ -127,12 +135,21 @@ $sshHosts = @()
 # Support array syntax: [host1, host2, ...]
 if ($sshHostBase -match '^\[(.+)\]$') {
     $baseHosts = $Matches[1] -split ',\s*'
-    foreach ($base in $baseHosts) {
+    if ($hostCounts.Count -eq 1) {
+        # Single count applies to all hostnames
+        $hostCounts = @($hostCounts[0]) * $baseHosts.Count
+    } elseif ($hostCounts.Count -ne $baseHosts.Count) {
+        Write-Error "ClientMachineCount has $($hostCounts.Count) entries but ClientMachineHostnames has $($baseHosts.Count). They must match."
+        exit 1
+    }
+    for ($h = 0; $h -lt $baseHosts.Count; $h++) {
+        $base = $baseHosts[$h]
+        $count = $hostCounts[$h]
         if ($base -match '^([a-zA-Z]+)(\d+)\.(.+)$') {
             $prefix = $Matches[1]
             $startIndex = [int]$Matches[2]
             $domain = $Matches[3]
-            for ($i = $startIndex; $i -lt ($startIndex + $hostCount); $i++) {
+            for ($i = $startIndex; $i -lt ($startIndex + $count); $i++) {
                 for ($m = 0; $m -lt $multiplier; $m++) {
                     $sshHosts += "$prefix$i.$domain"
                 }
@@ -144,6 +161,7 @@ if ($sshHostBase -match '^\[(.+)\]$') {
     }
 } else {
     # Single host pattern
+    $hostCount = $hostCounts[0]
     if ($sshHostBase -match '^([a-zA-Z]+)(\d+)\.(.+)$') {
         $prefix = $Matches[1]
         $startIndex = [int]$Matches[2]

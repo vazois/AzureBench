@@ -109,3 +109,25 @@ op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
 op = MSET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
 32 benchmark instances (shards, threads, workers, batch, value)             
             (     6,      32,    1024,    64,   256): 69,614.10 Kops/sec | 17.116 GB/s data | 18.044 GB/s wire
+
+
+_______________________________________________________
++++++++++++++++++ LARGE CLUSTER +++++++++++++++++++++++
+_______________________________________________________
+
+
+<GARNET>
+op = GET, DbSize = ~1,000,000, Pipeline = true, (15625 x 64)
+Instances  : 222 (2 x 111 hosts)
+Workers    : 3552 total (16 per instance x 222 instances)
+(batch, value)
+(   64,     8):   464,374.40 Kops/sec |  6.918 GB/s data |  17.738 GB/s wire
+(  256,     8): 1,158,246.80 Kops/sec | 17.258 GB/s data |  44.226 GB/s wire
+( 1024,     8): 2,417,050.40 Kops/sec | 36.018 GB/s data |  92.280 GB/s wire
+( 4096,     8): 2,692,589.40 Kops/sec | 40.110 GB/s data | 102.806 GB/s wire
+
+(   64,    64):   372,829.60 Kops/sec | 37.504 GB/s data |  46.872 GB/s wire
+(  256,    64): 1,158,246.80 Kops/sec | 17.258 GB/s data |  44.226 GB/s wire
+( 1024,    64): 2,417,050.40 Kops/sec | 36.018 GB/s data |  92.280 GB/s wire
+( 4096,    64): 2,692,589.40 Kops/sec | 40.110 GB/s data | 102.806 GB/s wire
+
