@@ -126,8 +126,8 @@ Workers    : 3552 total (16 per instance x 222 instances)
 ( 1024,     8): 2,417,050.40 Kops/sec | 36.018 GB/s data |  92.280 GB/s wire
 ( 4096,     8): 2,692,589.40 Kops/sec | 40.110 GB/s data | 102.806 GB/s wire
 
-(   64,    64):   372,829.60 Kops/sec | 37.504 GB/s data |  46.872 GB/s wire
-(  256,    64): 1,158,246.80 Kops/sec | 17.258 GB/s data |  44.226 GB/s wire
-( 1024,    64): 2,417,050.40 Kops/sec | 36.018 GB/s data |  92.280 GB/s wire
-( 4096,    64): 2,692,589.40 Kops/sec | 40.110 GB/s data | 102.806 GB/s wire
+(   64,    64): 372,829.60 Kops/sec | 37.504 GB/s data | 46.872 GB/s wire
+(  256,    64): 644,929.60 Kops/sec | 64.872 GB/s data | 81.088 GB/s wire
+( 1024,    64): 740,153.60 Kops/sec | 74.440 GB/s data | 93.070 GB/s wire
+( 4096,    64): 663,209.00 Kops/sec | 66.714 GB/s data | 83.374 GB/s wire
 
