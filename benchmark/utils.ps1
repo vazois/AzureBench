@@ -118,6 +118,83 @@ function Get-BenchmarkConfig {
     }
 }
 
+function Show-ClientMachineInfo {
+    <#
+    .SYNOPSIS
+        Prints per-VMSS client machine info: VM count, cores per VM (probed via
+        nproc on one host per VMSS), and total cores.
+    .PARAMETER SshHosts
+        Full list of client SSH hosts (may include Multiplier duplicates).
+    .PARAMETER SshKey
+        Path to SSH private key.
+    .PARAMETER SshUser
+        SSH username.
+    #>
+    param(
+        [Parameter(Mandatory)][string[]]$SshHosts,
+        [Parameter(Mandatory)][string]$SshKey,
+        [Parameter(Mandatory)][string]$SshUser
+    )
+
+    # Count physical VMs only (exclude the per-VM instance duplication from Multiplier).
+    $uniqueHosts = $SshHosts | Select-Object -Unique
+
+    # Group by VMSS name = first domain label after the short hostname:
+    #   vm99.fs4v2client100.southcentralus.cloudapp.azure.com -> fs4v2client100
+    $groups = $uniqueHosts | Group-Object { ($_ -split '\.')[1] }
+
+    $probeOpts = @('-n', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes')
+
+    Write-Host "Probing client machine info..." -ForegroundColor DarkGray
+
+    $rows = foreach ($g in $groups) {
+        # Probe several hosts (not just the first) so one unreachable instance or a
+        # first-time host key doesn't zero out the whole VMSS. Stop at the first that
+        # returns a valid core count; leave $cores null if none respond.
+        $cores = $null
+        foreach ($probeHost in ($g.Group | Select-Object -First 5)) {
+            $nprocRaw = ssh -i $SshKey @probeOpts "${SshUser}@${probeHost}" "nproc" 2>&1
+            foreach ($line in $nprocRaw) {
+                if ("$line" -match '^\s*(\d+)\s*$') { $cores = [int]$Matches[1]; break }
+            }
+            if ($null -ne $cores) { break }
+        }
+        [PSCustomObject]@{
+            Vmss       = $g.Name
+            VMs        = $g.Count
+            CoresPerVM = $cores
+            TotalCores = if ($null -ne $cores) { $g.Count * $cores } else { $null }
+        }
+    }
+
+    $totalVMs   = ($rows | Measure-Object -Property VMs -Sum).Sum
+    $totalCores = ($rows | Where-Object { $null -ne $_.TotalCores } | Measure-Object -Property TotalCores -Sum).Sum
+
+    $vmssW = ($rows | ForEach-Object { $_.Vmss.Length } | Measure-Object -Maximum).Maximum
+    $vmssW = [Math]::Max(4, $vmssW)
+
+    $rowFmt    = "  {0}  {1,4}  {2,8}  {3,11}"
+    $lineWidth = $vmssW + 31
+    $title     = ("=== Client Machines ").PadRight($lineWidth, '=')
+    $footer    = '=' * $lineWidth
+    $sep       = "  {0}  {1}  {2}  {3}" -f ('-' * $vmssW), ('-' * 4), ('-' * 8), ('-' * 11)
+
+    Write-Host ""
+    Write-Host $title -ForegroundColor Cyan
+    Write-Host ($rowFmt -f "VMSS".PadRight($vmssW), "VMs", "Cores/VM", "Total Cores") -ForegroundColor Cyan
+    Write-Host $sep -ForegroundColor DarkGray
+    foreach ($r in $rows) {
+        $coresDisp = if ($null -ne $r.CoresPerVM) { $r.CoresPerVM } else { '?' }
+        $totalDisp = if ($null -ne $r.TotalCores) { $r.TotalCores } else { '?' }
+        $note = if ($null -eq $r.CoresPerVM) { '  (unreachable)' } else { '' }
+        Write-Host (($rowFmt -f $r.Vmss.PadRight($vmssW), $r.VMs, $coresDisp, $totalDisp) + $note)
+    }
+    Write-Host $sep -ForegroundColor DarkGray
+    Write-Host ($rowFmt -f "TOTAL".PadRight($vmssW), $totalVMs, "", $totalCores) -ForegroundColor Green
+    Write-Host $footer -ForegroundColor Cyan
+    Write-Host ""
+}
+
 function Show-BenchmarkConfig {
     param(
         [string]$BenchCmd,

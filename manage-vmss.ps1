@@ -22,9 +22,9 @@
     - rebuild: git pull + rebuild specified system (requires -System)
     - deploy: git pull AzureBench + run full deployment workflow
     - install: git pull AzureBench + copy scripts only
-    - start: power on all instances in the VMSS (az vmss start)
-    - stop: deallocate all instances in the VMSS, stopping compute billing (az vmss deallocate)
-    - restart: restart all instances in the VMSS (az vmss restart)
+    - start: power on all instances in the VMSS (az vmss start, fire-and-forget)
+    - stop: deallocate all instances in the VMSS, stopping compute billing (az vmss deallocate, fire-and-forget)
+    - restart: restart only failed/unhealthy instances in the VMSS (az vmss restart, fire-and-forget)
 
 .PARAMETER System
     System to rebuild (required when Action=rebuild).
@@ -90,9 +90,9 @@ if ($Help -or -not $rg) {
     Write-Host "                      rebuild        - git pull + rebuild system (requires -System)"
     Write-Host "                      deploy         - git pull + run full deployment workflow"
     Write-Host "                      install        - git pull + copy scripts only"
-    Write-Host "                      start          - power on all VMSS instances (az vmss start)"
-    Write-Host "                      stop           - deallocate all VMSS instances (az vmss deallocate)"
-    Write-Host "                      restart        - restart only failed instances (az vmss restart)"
+    Write-Host "                      start          - power on all VMSS instances (fire-and-forget)"
+    Write-Host "                      stop           - deallocate all VMSS instances (fire-and-forget)"
+    Write-Host "                      restart        - restart only failed instances (fire-and-forget)"
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
@@ -355,8 +355,11 @@ if ($Action -in 'start', 'stop', 'restart') {
             }
         } else {
             $azVerb = if ($action -eq 'start') { 'start' } else { 'deallocate' }
-            $output = az vmss $azVerb --resource-group $rg --name $vmss 2>&1
+            # Fire-and-forget: --no-wait returns immediately instead of blocking on
+            # the power LRO (which can hang if instances fail to converge).
+            $output = az vmss $azVerb --resource-group $rg --name $vmss --no-wait 2>&1
             $success = ($LASTEXITCODE -eq 0)
+            if ($success) { $detail = "$azVerb requested" }
             if (-not $success) { $detail = ($output -join ' ') }
         }
 

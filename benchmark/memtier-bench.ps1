@@ -172,6 +172,7 @@ if ($clusterFlag) { $benchCmd += " $clusterFlag" }
 # --- Print summary ---
 $instances = $sshHosts.Count
 $uniqueHosts = ($sshHosts | Select-Object -Unique).Count
+Show-ClientMachineInfo -SshHosts $sshHosts -SshKey $sshKey -SshUser $sshUser
 Write-Host "=== Instance Configuration ===" -ForegroundColor Cyan
 Write-Host "  SSH Key      : $sshKey"
 Write-Host "  SSH User     : $sshUser"

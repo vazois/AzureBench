@@ -255,6 +255,9 @@ Write-Host ""
 
 $workersPerInstance = Show-BenchmarkConfig -BenchCmd $benchCmd -SshKey $sshKey -SshUser $sshUser -ProbeHost $probeHost -Runtime $runtime -DbSize ($config["DbSize"] ?? "") -Threads ([int]$threads)
 
+# --- Print client machine info ---
+Show-ClientMachineInfo -SshHosts $sshHosts -SshKey $sshKey -SshUser $sshUser
+
 # --- Print instance configuration ---
 $totalWorkers = $workersPerInstance * $instances
 Write-Host "=== Instance Configuration ===" -ForegroundColor Cyan

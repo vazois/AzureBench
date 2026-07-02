@@ -57,6 +57,9 @@ param osDiskType string
   'Dpds_v6: [8, 32, 64, 96]'
   'Eps_v6: [8, 32, 48, 64, 96]'
   'Epds_v6: [8, 32, 64, 96]'
+  // Intel v6
+  'Ds_v6: [8, 32, 48, 64, 96]'
+  'Es_v6: [8, 32, 48, 64, 96]'
 ])
 param vmFamily string
 
@@ -86,8 +89,8 @@ var suffixAndVersion = substring(familyName, 1, max(0, length(familyName) - 1))
 var vmSKU = familyName == 'DSv2' ? 'Standard_DS5_v2' : 'Standard_${seriesLetter}${vmCores}${suffixAndVersion}'
 
 // ARM-based SKUs do not support Trusted Launch.
-// x64 families: E_v3, Fs_v2, Fas_v6, DSv2
-var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'DSv2']
+// x64 families: E_v3, Fs_v2, Fas_v6, Ds_v6, Es_v6, DSv2
+var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Es_v6', 'DSv2']
 var supportsTrustedLaunch = contains(x64Families, familyName)
 var securityProfileConfig = supportsTrustedLaunch
   ? {
