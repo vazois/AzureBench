@@ -61,7 +61,7 @@ param(
 
     [string]$VmssName,
 
-    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping', 'start', 'stop', 'restart')]
+    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping', 'start', 'stop', 'restart', 'list')]
     [string]$Action = 'refresh',
 
     [ValidateSet('garnet', 'valkey', 'resp-bench', 'memtier')]
@@ -93,6 +93,7 @@ if ($Help -or -not $rg) {
     Write-Host "                      start          - power on all VMSS instances (fire-and-forget)"
     Write-Host "                      stop           - deallocate all VMSS instances (fire-and-forget)"
     Write-Host "                      restart        - restart only failed instances (fire-and-forget)"
+    Write-Host "                      list           - list instance status for selected VMSS"
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
@@ -262,6 +263,96 @@ if ($targetVmss.Count -eq 0) {
 }
 
 Write-Host "Target VMSS: $($targetVmss -join ', ')" -ForegroundColor Green
+
+# --- List Action: show per-instance status ---
+if ($Action -eq 'list') {
+    foreach ($vmss in $targetVmss) {
+        Write-Host "`n=== VMSS Instance Status: $vmss ===" -ForegroundColor Cyan
+
+        $instJson = az vmss list-instances --resource-group $rg --name $vmss `
+            --expand instanceView -o json 2>$null
+
+        if ($LASTEXITCODE -ne 0 -or -not $instJson) {
+            Write-Warning "Failed to query instances for '$vmss'."
+            continue
+        }
+
+        $instances = @($instJson | ConvertFrom-Json)
+        if ($instances.Count -eq 0) {
+            Write-Host "  No instances found." -ForegroundColor DarkGray
+            continue
+        }
+
+        # Also get public IPs for FQDN
+        $ipsJson = az vmss list-instance-public-ips --resource-group $rg --name $vmss `
+            --query '[].{id:id, ip:ipAddress, fqdn:dnsSettings.fqdn}' -o json 2>$null
+        $ipMap = @{}
+        if ($LASTEXITCODE -eq 0 -and $ipsJson) {
+            $ips = @($ipsJson | ConvertFrom-Json)
+            foreach ($ipEntry in $ips) {
+                # Extract instance ID from the resource ID path
+                if ($ipEntry.id -match '/virtualMachines/(\d+)/') {
+                    $ipMap[$Matches[1]] = @{ ip = $ipEntry.ip; fqdn = $ipEntry.fqdn }
+                }
+            }
+        }
+
+        # Build rows
+        $rows = foreach ($inst in $instances) {
+            $instId = $inst.instanceId
+            $provState = $inst.provisioningState
+            $powerCode = ($inst.instanceView.statuses | Where-Object { $_.code -match '^PowerState/' } | Select-Object -First 1).code
+            $powerState = if ($powerCode) { $powerCode -replace 'PowerState/', '' } else { 'unknown' }
+            $ipInfo = $ipMap[$instId]
+            $fqdn = if ($ipInfo) { $ipInfo.fqdn } else { '' }
+            $ip = if ($ipInfo) { $ipInfo.ip } else { '' }
+
+            [PSCustomObject]@{
+                Idx   = $instId
+                Power = $powerState
+                Prov  = $provState
+                IP    = $ip
+                FQDN  = $fqdn
+            }
+        }
+
+        $rows = @($rows | Sort-Object { [int]$_.Idx })
+
+        # Compute column widths
+        $wIdx   = [Math]::Max('ID'.Length, (($rows | ForEach-Object { "$($_.Idx)".Length }) | Measure-Object -Maximum).Maximum)
+        $wPower = [Math]::Max('POWER'.Length, (($rows | ForEach-Object { $_.Power.Length }) | Measure-Object -Maximum).Maximum)
+        $wProv  = [Math]::Max('PROVISIONING'.Length, (($rows | ForEach-Object { $_.Prov.Length }) | Measure-Object -Maximum).Maximum)
+        $wIP    = [Math]::Max('IP'.Length, (($rows | ForEach-Object { $_.IP.Length }) | Measure-Object -Maximum).Maximum)
+
+        # Header
+        $header = "  {0}  {1}  {2}  {3}  {4}" -f 'ID'.PadRight($wIdx), 'POWER'.PadRight($wPower), 'PROVISIONING'.PadRight($wProv), 'IP'.PadRight($wIP), 'FQDN'
+        Write-Host $header -ForegroundColor Cyan
+        Write-Host ("  {0}  {1}  {2}  {3}  {4}" -f ('-' * $wIdx), ('-' * $wPower), ('-' * $wProv), ('-' * $wIP), '----') -ForegroundColor DarkGray
+
+        foreach ($row in $rows) {
+            $powerColor = switch -Regex ($row.Power) {
+                'running'     { 'Green' }
+                'deallocated' { 'DarkGray' }
+                'stopped'     { 'Yellow' }
+                default       { 'Red' }
+            }
+            $provColor = if ($row.Prov -eq 'Succeeded') { 'Green' } elseif ($row.Prov -eq 'Failed') { 'Red' } else { 'Yellow' }
+
+            Write-Host ("  {0}  " -f "$($row.Idx)".PadRight($wIdx)) -NoNewline
+            Write-Host $row.Power.PadRight($wPower) -NoNewline -ForegroundColor $powerColor
+            Write-Host '  ' -NoNewline
+            Write-Host $row.Prov.PadRight($wProv) -NoNewline -ForegroundColor $provColor
+            Write-Host "  $($row.IP.PadRight($wIP))  $($row.FQDN)" -ForegroundColor DarkGray
+        }
+
+        # Summary
+        $powerSummary = ($rows | Group-Object Power | Sort-Object Name | ForEach-Object { "$($_.Name): $($_.Count)" }) -join ', '
+        $provSummary = ($rows | Group-Object Prov | Sort-Object Name | ForEach-Object { "$($_.Name): $($_.Count)" }) -join ', '
+        Write-Host "`n  Summary: $powerSummary | $provSummary" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+    return
+}
 
 # --- Power Operations (start / stop / restart) ---
 # start/stop/restart are Azure control-plane operations. They do not use SSH,

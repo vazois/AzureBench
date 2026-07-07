@@ -117,17 +117,31 @@ _______________________________________________________
 
 
 <GARNET>
-op = GET, DbSize = ~1,000,000, Pipeline = true, (15625 x 64)
-Instances  : 222 (2 x 111 hosts)
-Workers    : 3552 total (16 per instance x 222 instances)
+DbSize = ~1,000,000, Pipeline = true, (13334 x 75)
+Instances  : 225 (1 x 225 hosts)
+Workers    : 3600 total (16 per instance x 225 instances)
+Pool: True
+
+[GET]
 (batch, value)
-(   64,     8):   464,374.40 Kops/sec |  6.918 GB/s data |  17.738 GB/s wire
-(  256,     8): 1,158,246.80 Kops/sec | 17.258 GB/s data |  44.226 GB/s wire
-( 1024,     8): 2,417,050.40 Kops/sec | 36.018 GB/s data |  92.280 GB/s wire
-( 4096,     8): 2,692,589.40 Kops/sec | 40.110 GB/s data | 102.806 GB/s wire
+(   64,     8):   418,042.20 Kops/sec |  6.227 GB/s data | 15.963 GB/s wire
+(  256,     8): 1,965,703.00 Kops/sec | 29.289 GB/s data | 75.065 GB/s wire
+( 1024,     8): 2,637,678.90 Kops/sec | 39.307 GB/s data | 100.716 GB/s wire
+( 4096,     8): 2,428,705.90 Kops/sec | 36.194 GB/s data | 92.746 GB/s wire
 
-(   64,    64): 372,829.60 Kops/sec | 37.504 GB/s data | 46.872 GB/s wire
-(  256,    64): 644,929.60 Kops/sec | 64.872 GB/s data | 81.088 GB/s wire
-( 1024,    64): 740,153.60 Kops/sec | 74.440 GB/s data | 93.070 GB/s wire
-( 4096,    64): 663,209.00 Kops/sec | 66.714 GB/s data | 83.374 GB/s wire
+(   64,    100):   363,695.70 Kops/sec |  36.588 GB/s data |  45.728 GB/s wire
+(  256,    100):   806,306.70 Kops/sec |  81.101 GB/s data | 101.378 GB/s wire
+( 1024,    100):   998,109.30 Kops/sec | 100.393 GB/s data | 125.490 GB/s wire
+( 4096,    100): 1,084,963.80 Kops/sec | 109.127 GB/s data | 136.413 GB/s wire
 
+[SET]
+(batch, value)
+(   64,     8):   244,949.20 Kops/sec |  3.663 GB/s data | 10.496 GB/s wire
+(  256,     8): 494,746.60 Kops/sec |  7.365 GB/s data | 21.195 GB/s wire 
+( 1024,     8): 810,899.80 Kops/sec | 12.090 GB/s data | 34.739 GB/s wire
+( 4096,     8): 1,105,744.80 Kops/sec | 16.477 GB/s data | 47.363 GB/s wire 
+
+(   64,    100): 250,462.00 Kops/sec | 25.196 GB/s data | 32.661 GB/s wire
+(  256,    100): 439,840.80 Kops/sec | 44.236 GB/s data | 57.349 GB/s wire
+( 1024,    100): 758,292.50 Kops/sec | 76.268 GB/s data | 98.880 GB/s wire
+( 4096,    100): 669,366.20 Kops/sec | 67.325 GB/s data | 87.269 GB/s wire

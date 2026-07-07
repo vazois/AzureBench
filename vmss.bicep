@@ -60,6 +60,9 @@ param osDiskType string
   // Intel v6
   'Ds_v6: [8, 32, 48, 64, 96]'
   'Es_v6: [8, 32, 48, 64, 96]'
+  // Intel v5
+  'Ds_v5: [8, 32, 48, 64, 96]'
+  'Es_v5: [8, 32, 48, 64, 96]'
 ])
 param vmFamily string
 
@@ -215,19 +218,21 @@ var storageProfileConfig = {
     sku: selectedImage.sku
     version: selectedImage.version
   }
-  dataDisks: dataDiskSizeGB > 0 ? [
-    {
-      lun: 0
-      createOption: 'Empty'
-      diskSizeGB: dataDiskSizeGB
-      managedDisk: {
-        storageAccountType: dataDiskType
-      }
-      caching: 'None'
-      diskIOPSReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskIOPS : null
-      diskMBpsReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskMBps : null
-    }
-  ] : []
+  dataDisks: dataDiskSizeGB > 0
+    ? [
+        {
+          lun: 0
+          createOption: 'Empty'
+          diskSizeGB: dataDiskSizeGB
+          managedDisk: {
+            storageAccountType: dataDiskType
+          }
+          caching: 'None'
+          diskIOPSReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskIOPS : null
+          diskMBpsReadWrite: dataDiskType == 'UltraSSD_LRS' ? dataDiskMBps : null
+        }
+      ]
+    : []
 }
 ///////////////////////////////////////////////////////
 
@@ -348,18 +353,22 @@ resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (
   properties: {
     overprovision: false
     singlePlacementGroup: true
-    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0 ? {
-      ultraSSDEnabled: true
-    } : null
+    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0
+      ? {
+          ultraSSDEnabled: true
+        }
+      : null
     upgradePolicy: {
       mode: 'Automatic'
       automaticOSUpgradePolicy: {
         enableAutomaticOSUpgrade: true
       }
     }
-    proximityPlacementGroup: useProximityGroup ? {
-      id: proximityId
-    } : null
+    proximityPlacementGroup: useProximityGroup
+      ? {
+          id: proximityId
+        }
+      : null
     virtualMachineProfile: {
       osProfile: {
         computerNamePrefix: vmssName
@@ -367,10 +376,12 @@ resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (
         linuxConfiguration: {
           disablePasswordAuthentication: true
           ssh: {
-            publicKeys: [for key in sshPublicKeys: {
-              path: '/home/${adminUsername}/.ssh/authorized_keys'
-              keyData: key
-            }]
+            publicKeys: [
+              for key in sshPublicKeys: {
+                path: '/home/${adminUsername}/.ssh/authorized_keys'
+                keyData: key
+              }
+            ]
           }
         }
         customData: cloudInitData
@@ -429,15 +440,19 @@ resource windowsVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if
   properties: {
     overprovision: false
     singlePlacementGroup: true
-    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0 ? {
-      ultraSSDEnabled: true
-    } : null
+    additionalCapabilities: dataDiskType == 'UltraSSD_LRS' && dataDiskSizeGB > 0
+      ? {
+          ultraSSDEnabled: true
+        }
+      : null
     upgradePolicy: {
       mode: 'Automatic'
     }
-    proximityPlacementGroup: useProximityGroup ? {
-      id: proximityId
-    } : null
+    proximityPlacementGroup: useProximityGroup
+      ? {
+          id: proximityId
+        }
+      : null
     virtualMachineProfile: {
       osProfile: {
         computerNamePrefix: substring(computerName, 0, 9)
