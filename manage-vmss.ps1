@@ -386,6 +386,7 @@ if ($Action -in 'start', 'stop', 'restart') {
             #   - top-level provisioningState == 'Failed'
             #   - its instanceView has an Error-level status
             #   - an extension reports no status (agent not reporting) or a 'failed' code
+            #   - the Application Health extension reports a non-healthy vmHealth state
             $instJson = az vmss list-instances --resource-group $rg --name $vmss `
                 --expand instanceView -o json 2>$null
 
@@ -411,6 +412,14 @@ if ($Action -in 'start', 'stop', 'restart') {
                                 break
                             }
                         }
+                    }
+
+                    # Application Health: vmHealth.status.code is 'HealthState/healthy'
+                    # when healthy; anything else (unhealthy/unknown) means the instance
+                    # is reporting itself as not healthy and should be restarted.
+                    if (-not $isFailed -and $iv.vmHealth.status.code -and
+                        $iv.vmHealth.status.code -ne 'HealthState/healthy') {
+                        $isFailed = $true
                     }
 
                     if ($isFailed) { $inst.instanceId }

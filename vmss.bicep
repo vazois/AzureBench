@@ -45,6 +45,7 @@ param osDiskType string
   // AMD
   'Fas_v6: [8, 32,64]'
   'Fas_v7: [8, 32,64,80]'
+  'Eas_v7: [8, 32,64,80]'
   // ARM v5: Ampere Altra
   'Dpls_v5: [8, 32, 64]'
   'Dps_v5: [8, 32, 64]'
