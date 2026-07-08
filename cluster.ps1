@@ -22,6 +22,7 @@ param(
     [string]$System,
 
     [string]$Template,
+    [Alias('Config')][string]$Conf,
     [int]$ICount = 1,
     [int]$Replicas = 0,
     [switch]$Clean,
@@ -45,7 +46,8 @@ if ($Help -or -not $Action) {
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -System      Target system: valkey or garnet (required)"
-    Write-Host "  -Template    Config template name (required for start)"
+    Write-Host "  -Template    Config template name (required for start unless -Conf given)"
+    Write-Host "  -Conf        Local config file path on THIS workstation; its content is shipped to the nodes (no git push needed)"
     Write-Host "  -ICount      Number of instances per VM (default: 1)"
     Write-Host "  -Replicas    Number of replicas per primary (default: 0)"
     Write-Host "  -Clean       Remove cluster directory before starting"
@@ -61,8 +63,31 @@ $ErrorActionPreference = "Stop"
 
 # --- Validate params ---
 if (-not $System) { Write-Error "-System is required"; exit 1 }
-if ($Action -eq "start" -and -not $Template) {
-    Write-Error "-Template is required for 'start'"; exit 1
+if ($Action -eq "start" -and -not $Template -and -not $Conf) {
+    Write-Error "-Template or -Conf is required for 'start'"; exit 1
+}
+if ($Template -and $Conf) {
+    Write-Error "-Template and -Conf are mutually exclusive; specify only one"; exit 1
+}
+
+# --- Resolve -Conf as a LOCAL workstation file and base64-encode it for shipping ---
+$confContent = ""
+$confName = ""
+if ($Conf) {
+    $confPath = $Conf
+    if (-not [System.IO.Path]::IsPathRooted($confPath)) {
+        if (Test-Path $confPath) {
+            $confPath = (Resolve-Path $confPath).Path
+        } elseif (Test-Path (Join-Path $PSScriptRoot $Conf)) {
+            $confPath = (Join-Path $PSScriptRoot $Conf)
+        }
+    }
+    if (-not (Test-Path $confPath)) {
+        Write-Error "-Conf file not found on this workstation: $Conf"; exit 1
+    }
+    $confName = Split-Path $confPath -Leaf
+    $confBytes = [System.IO.File]::ReadAllBytes($confPath)
+    $confContent = [Convert]::ToBase64String($confBytes)
 }
 
 # --- Load config file for defaults ---
@@ -127,6 +152,7 @@ function Invoke-Remote {
 Write-Host "==== cluster ($Action) ====" -ForegroundColor Cyan
 Write-Host "  Server:    $ServerHost"
 Write-Host "  System:    $System"
+if ($Conf)      { Write-Host "  Conf:      $Conf ($($confBytes.Length) bytes, shipped as $confName)" }
 if ($Template)  { Write-Host "  Template:  $Template" }
 Write-Host "  ICount:    $ICount"
 if ($Replicas -gt 0) { Write-Host "  Replicas:  $Replicas" }
@@ -138,7 +164,9 @@ Write-Host ""
 switch ($Action) {
     "start" {
         # Step 1: Start instances
-        $startCmd = "cluster-deploy.ps1 -Action start -System $System -Template $Template -ICount $ICount"
+        $startCmd = "cluster-deploy.ps1 -Action start -System $System -ICount $ICount"
+        if ($Template) { $startCmd += " -Template $Template" }
+        if ($Conf) { $startCmd += " -ConfContent $confContent -ConfName $confName" }
         if ($Clean) { $startCmd += " -Clean" }
         if ($NoCluster) { $startCmd += " -NoCluster" }
         Invoke-Remote -Cmd $startCmd -Label "start"

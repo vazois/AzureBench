@@ -19,6 +19,9 @@ param(
     [ValidateSet("start","stop","update","clean","stage")][string]$Action,
     [string]$System,
     [string]$Template,
+    [Alias('Config')][string]$Conf,
+    [string]$ConfContent,
+    [string]$ConfName,
     [int]$Nodes = 0,
     [switch]$NoCluster,
     [switch]$Clean,
@@ -26,20 +29,23 @@ param(
 )
 
 if ($Help -or -not $Action) {
-    Write-Host "Usage: mcluster.ps1 -Action <start|stop|update|clean|stage> [-System <valkey|garnet>] [-Template <name>] [-Nodes <n>] [-NoCluster] [-Clean]"
+    Write-Host "Usage: mcluster.ps1 -Action <start|stop|update|clean|stage> [-System <valkey|garnet>] [-Template <name>] [-Conf <path>] [-Nodes <n>] [-NoCluster] [-Clean]"
     Write-Host ""
     Write-Host "Manage valkey/garnet cluster instances: start, stop, clean, or update configs."
     Write-Host ""
     Write-Host "Actions:"
-    Write-Host "  start    Start cluster instances (requires -System, -Template, -Nodes)"
+    Write-Host "  start    Start cluster instances (requires -System, -Template or -Conf, -Nodes)"
     Write-Host "  stop     Stop running instances (optionally filter by -System, -Nodes)"
     Write-Host "  clean    Remove cluster directories (optionally filter by -System)"
-    Write-Host "  update   Pull configs and re-resolve templates (requires -System, -Template)"
+    Write-Host "  update   Pull configs and re-resolve templates (requires -System, -Template or -Conf)"
     Write-Host "  stage    Resolve configs and print the commands to start instances manually"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -System      Target system: valkey or garnet"
-    Write-Host "  -Template    Config template name (e.g., cache, disk)"
+    Write-Host "  -Template    Config template name (e.g., cache, disk) -> resolves node/system/<system>-<template>.conf"
+    Write-Host "  -Conf        Explicit config file path on this node (repo-relative or absolute); overrides -Template"
+    Write-Host "  -ConfContent Base64 config content shipped from the caller (decoded to a temp file); highest precedence"
+    Write-Host "  -ConfName    Leaf filename to use when writing -ConfContent (default: shipped.conf)"
     Write-Host "  -Nodes       Number of instances to manage"
     Write-Host "  -NoCluster   Disable cluster mode in generated configs"
     Write-Host "  -Clean       Remove cluster directory before starting"
@@ -85,9 +91,26 @@ function Get-Eth1Ip {
 }
 
 function Resolve-Template {
-    param([string]$Sys, [string]$Tmpl, [int]$Count)
+    param([string]$Sys, [string]$Tmpl, [int]$Count, [string]$ConfPath, [string]$ConfB64, [string]$ConfLeaf)
 
-    $tmplFile = "$ConfDir/${Sys}-${Tmpl}.conf"
+    # Precedence for the source template:
+    #   1. -ConfContent : base64 file content shipped from the workstation
+    #                     (decoded to a temp file; no git pull required).
+    #   2. -Conf        : explicit path on this node (repo-relative or absolute).
+    #   3. convention   : <system>-<template>.conf under node/system.
+    if ($ConfB64) {
+        $tmpDir = "$HOME/.mcluster-conf"
+        New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+        $leaf = if ($ConfLeaf) { $ConfLeaf } else { "shipped.conf" }
+        $tmplFile = "$tmpDir/$leaf"
+        $bytes = [Convert]::FromBase64String($ConfB64)
+        [System.IO.File]::WriteAllBytes($tmplFile, $bytes)
+        Write-Host "  Using shipped conf: $leaf ($($bytes.Length) bytes)" -ForegroundColor DarkGray
+    } elseif ($ConfPath) {
+        $tmplFile = if ([System.IO.Path]::IsPathRooted($ConfPath)) { $ConfPath } else { "$RepoDir/$ConfPath" }
+    } else {
+        $tmplFile = "$ConfDir/${Sys}-${Tmpl}.conf"
+    }
     if (-not (Test-Path $tmplFile)) {
         $available = Get-ChildItem "$ConfDir/*.conf" -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }
         throw "ERROR: Template not found: $tmplFile`nAvailable: $($available -join ', ')"
@@ -137,7 +160,7 @@ function Resolve-Template {
             Set-Content -Path "$portDir/valkey.conf" -Value $content -NoNewline
         }
     }
-    Write-Host "Resolved $Count config(s) from ${Sys}-${Tmpl}.conf (cluster=$ClusterMode) -> $clusterDir/" -ForegroundColor Green
+    Write-Host "Resolved $Count config(s) from $(Split-Path $tmplFile -Leaf) (cluster=$ClusterMode) -> $clusterDir/" -ForegroundColor Green
 }
 
 function Start-Valkey {
@@ -272,13 +295,14 @@ function Stop-System {
 # Main logic
 switch ($Action) {
     "start" {
-        if (-not $System) { throw "Usage: mcluster.ps1 -Action start -System <system> -Template <template> -Nodes <n>" }
-        if (-not $Template) { throw "Usage: mcluster.ps1 -Action start -System <system> -Template <template> -Nodes <n>" }
-        if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action start -System <system> -Template <template> -Nodes <n>" }
+        if (-not $System) { throw "Usage: mcluster.ps1 -Action start -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
+        if (-not $Template -and -not $Conf -and -not $ConfContent) { throw "Usage: mcluster.ps1 -Action start -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
+        if ($Template -and ($Conf -or $ConfContent)) { throw "ERROR: -Template and -Conf/-ConfContent are mutually exclusive; specify only one." }
+        if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action start -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
 
         Write-Host "==== mcluster (start) ====" -ForegroundColor Cyan
         Write-Host "  System:   $System"
-        Write-Host "  Template: $Template"
+        if ($ConfContent) { Write-Host "  Conf:     $ConfName (shipped)" } elseif ($Conf) { Write-Host "  Conf:     $Conf" } else { Write-Host "  Template: $Template" }
         Write-Host "  Nodes:    $Nodes"
         Write-Host "  Cluster:  $ClusterMode"
         Write-Host ""
@@ -289,7 +313,7 @@ switch ($Action) {
         }
 
         Pull-Configs
-        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes
+        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes -ConfPath $Conf -ConfB64 $ConfContent -ConfLeaf $ConfName
 
         if ($System -eq "garnet") { Start-Garnet -Count $Nodes }
         else { Start-Valkey -Count $Nodes }
@@ -314,8 +338,9 @@ switch ($Action) {
     }
 
     "update" {
-        if (-not $System) { throw "Usage: mcluster.ps1 -Action update -System <system> -Template <template> [-Nodes <n>]" }
-        if (-not $Template) { throw "Usage: mcluster.ps1 -Action update -System <system> -Template <template> [-Nodes <n>]" }
+        if (-not $System) { throw "Usage: mcluster.ps1 -Action update -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) [-Nodes <n>]" }
+        if (-not $Template -and -not $Conf -and -not $ConfContent) { throw "Usage: mcluster.ps1 -Action update -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) [-Nodes <n>]" }
+        if ($Template -and ($Conf -or $ConfContent)) { throw "ERROR: -Template and -Conf/-ConfContent are mutually exclusive; specify only one." }
 
         Pull-Configs
 
@@ -327,14 +352,15 @@ switch ($Action) {
             if ($Nodes -eq 0) { throw "ERROR: No existing cluster dir found and no -Nodes specified" }
         }
 
-        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes
+        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes -ConfPath $Conf -ConfB64 $ConfContent -ConfLeaf $ConfName
         Write-Host "Updated configs in place. Restart instances to apply." -ForegroundColor Yellow
     }
 
     "stage" {
-        if (-not $System) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
-        if (-not $Template) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
-        if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action stage -System <system> -Template <template> -Nodes <n>" }
+        if (-not $System) { throw "Usage: mcluster.ps1 -Action stage -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
+        if (-not $Template -and -not $Conf -and -not $ConfContent) { throw "Usage: mcluster.ps1 -Action stage -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
+        if ($Template -and ($Conf -or $ConfContent)) { throw "ERROR: -Template and -Conf/-ConfContent are mutually exclusive; specify only one." }
+        if ($Nodes -le 0) { throw "Usage: mcluster.ps1 -Action stage -System <system> (-Template <template> | -Conf <path> | -ConfContent <b64>) -Nodes <n>" }
 
         if ($Clean) {
             Write-Host "Cleaning $System cluster directory..."
@@ -342,7 +368,7 @@ switch ($Action) {
         }
 
         Pull-Configs
-        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes
+        Resolve-Template -Sys $System -Tmpl $Template -Count $Nodes -ConfPath $Conf -ConfB64 $ConfContent -ConfLeaf $ConfName
 
         Write-Host ""
         Write-Host "==== Staged commands (copy & paste to run manually) ====" -ForegroundColor Cyan

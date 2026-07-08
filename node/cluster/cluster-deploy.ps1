@@ -20,6 +20,9 @@ param(
     [ValidateSet("discover","start","setup","stop")][string]$Action,
     [ValidateSet("valkey","garnet")][string]$System,
     [string]$Template,
+    [Alias('Config')][string]$Conf,
+    [string]$ConfContent,
+    [string]$ConfName,
     [int]$ICount = 1,
     [int]$NodeCount,
     [switch]$Clean,
@@ -45,7 +48,10 @@ if ($Help -or -not $Action) {
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -System         Target system: valkey or garnet (required for start/setup/stop)"
-    Write-Host "  -Template       Config template name (required for start)"
+    Write-Host "  -Template       Config template name (required for start unless -Conf/-ConfContent given)"
+    Write-Host "  -Conf           Explicit config file path on server (repo-relative or absolute); overrides -Template"
+    Write-Host "  -ConfContent    Base64 config content shipped from the workstation; forwarded to nodes"
+    Write-Host "  -ConfName       Leaf filename for -ConfContent"
     Write-Host "  -ICount  Number of instances per VM (required)"
     Write-Host "  -NodeCount      Use first N peers from cache/discovery (optional, default: all)"
     Write-Host "  -Clean          Clean cluster directories before starting"
@@ -594,7 +600,8 @@ switch ($Action) {
 
     "start" {
         if (-not $System) { throw "ERROR: -System is required for start." }
-        if (-not $Template) { throw "ERROR: -Template is required for start." }
+        if (-not $Template -and -not $Conf -and -not $ConfContent) { throw "ERROR: -Template, -Conf, or -ConfContent is required for start." }
+        if ($Template -and ($Conf -or $ConfContent)) { throw "ERROR: -Template and -Conf/-ConfContent are mutually exclusive; specify only one." }
         if (-not $ICount) { throw "ERROR: -ICount is required for start." }
 
         $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
@@ -604,7 +611,7 @@ switch ($Action) {
         Write-Host ""
         Write-Host "  Peers:         $($ips -join ', ')"
         Write-Host "  System:        $System"
-        Write-Host "  Template:      $Template"
+        if ($ConfContent) { Write-Host "  Conf:          $ConfName (shipped)" } elseif ($Conf) { Write-Host "  Conf:          $Conf" } else { Write-Host "  Template:      $Template" }
         Write-Host "  ICount: $ICount"
         Write-Host "  Port:          $Port"
         Write-Host "  Clean:         $Clean"
@@ -612,7 +619,10 @@ switch ($Action) {
         Write-Host ""
 
         # Build mcluster arguments
-        $mclusterArgs = "-Action start -System $System -Template $Template -Nodes $ICount"
+        $mclusterArgs = "-Action start -System $System -Nodes $ICount"
+        if ($Template) { $mclusterArgs += " -Template $Template" }
+        if ($ConfContent) { $mclusterArgs += " -ConfContent $ConfContent -ConfName $ConfName" }
+        elseif ($Conf) { $mclusterArgs += " -Conf $Conf" }
         if ($Clean) { $mclusterArgs += " -Clean" }
         if ($NoCluster) { $mclusterArgs += " -NoCluster" }
 
