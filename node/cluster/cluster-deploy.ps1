@@ -156,6 +156,65 @@ function Get-PeersFromAzure {
     }
 }
 
+# Build a hashtable mapping each VMSS eth1 private IP -> public DNS FQDN
+# (e.g. 10.5.64.34 -> vm0.ds16v2server.southcentralus.cloudapp.azure.com) using the
+# VM's managed identity. Correlates NICs (privateIP -> instanceId) with public IPs
+# (instanceId -> dnsSettings.fqdn). Returns an empty hashtable on any failure so
+# callers can fall back to reverse DNS.
+function Get-IpFqdnMap {
+    $map = @{}
+    try {
+        $metaUri = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+        $meta = Invoke-RestMethod -Uri $metaUri -Headers @{ Metadata = "true" } -TimeoutSec 5
+        $subscriptionId = $meta.compute.subscriptionId
+        $resourceGroup  = $meta.compute.resourceGroupName
+        $vmssName       = $meta.compute.vmScaleSetName
+        if (-not $vmssName) { return $map }
+
+        $tokenUri = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+        $tokenResp = Invoke-RestMethod -Uri $tokenUri -Headers @{ Metadata = "true" } -TimeoutSec 5
+        $headers = @{ Authorization = "******"; "Content-Type" = "application/json" }
+
+        $base = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Compute/virtualMachineScaleSets/$vmssName"
+
+        # privateIP -> instanceId (from NICs)
+        $ipToInstance = @{}
+        $next = "$base/networkInterfaces?api-version=2022-11-01"
+        while ($next) {
+            $page = Invoke-RestMethod -Uri $next -Headers $headers -TimeoutSec 30
+            foreach ($nic in $page.value) {
+                $instId = if ($nic.properties.virtualMachine.id -match '/virtualMachines/(\d+)') { $Matches[1] } else { $null }
+                foreach ($cfg in $nic.properties.ipConfigurations) {
+                    $pip = $cfg.properties.privateIPAddress
+                    if ($pip -and $instId) { $ipToInstance[$pip] = $instId }
+                }
+            }
+            $next = $page.nextLink
+        }
+
+        # instanceId -> fqdn (from public IPs)
+        $instanceToFqdn = @{}
+        $next = "$base/publicIPAddresses?api-version=2022-11-01"
+        while ($next) {
+            $page = Invoke-RestMethod -Uri $next -Headers $headers -TimeoutSec 30
+            foreach ($pub in $page.value) {
+                $fqdn = $pub.properties.dnsSettings.fqdn
+                $instId = if ($pub.properties.ipConfiguration.id -match '/virtualMachines/(\d+)') { $Matches[1] } else { $null }
+                if ($fqdn -and $instId) { $instanceToFqdn[$instId] = $fqdn }
+            }
+            $next = $page.nextLink
+        }
+
+        foreach ($pip in $ipToInstance.Keys) {
+            $fqdn = $instanceToFqdn[$ipToInstance[$pip]]
+            if ($fqdn) { $map[$pip] = $fqdn }
+        }
+    } catch {
+        return $map
+    }
+    return $map
+}
+
 function Find-Peers {
     param([string]$OwnIp, [int]$Prefix, [string]$SshUser, [int]$Timeout)
 
@@ -275,6 +334,21 @@ function Show-Discovery {
     Write-Host "  Peers: $($ProbeResults.Count) | Listening: $totalListening/$totalPorts" -ForegroundColor Yellow
 }
 
+# Resolve a hostname/FQDN for an IP via reverse DNS. Returns the IP itself if
+# no PTR record exists so callers always get a printable label.
+function Resolve-HostName {
+    param([string]$Ip)
+    try {
+        $entry = [System.Net.Dns]::GetHostEntry($Ip)
+        if ($entry -and $entry.HostName -and $entry.HostName -ne $Ip) {
+            return $entry.HostName
+        }
+    } catch {
+        # No PTR record / resolution failed — fall through to returning the IP.
+    }
+    return $Ip
+}
+
 function Test-SshConnectivity {
     param([string[]]$Ips, [string]$SshUser, [int]$Timeout)
     Write-Host "Validating SSH connectivity to $($Ips.Count) VMs..." -ForegroundColor Yellow
@@ -290,7 +364,14 @@ function Test-SshConnectivity {
     }
     if ($failed.Count -gt 0) {
         Write-Host "ERROR: SSH failed for the following VMs:" -ForegroundColor Red
-        $failed | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+        $failed | ForEach-Object {
+            $name = Resolve-HostName -Ip $_
+            if ($name -ne $_) {
+                Write-Host "  $_ ($name)" -ForegroundColor Red
+            } else {
+                Write-Host "  $_ (hostname not resolvable)" -ForegroundColor Red
+            }
+        }
         throw "Aborting: $($failed.Count) VM(s) unreachable"
     }
     Write-Host "  All $($Ips.Count) VMs reachable." -ForegroundColor Green

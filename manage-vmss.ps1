@@ -22,6 +22,7 @@
     - rebuild: git pull + rebuild specified system (requires -System)
     - deploy: git pull AzureBench + run full deployment workflow
     - install: git pull AzureBench + copy scripts only
+    - ping: probe SSH port (TCP 22) reachability of each instance and print FQDN
     - start: power on all instances in the VMSS (az vmss start, fire-and-forget)
     - stop: deallocate all instances in the VMSS, stopping compute billing (az vmss deallocate, fire-and-forget)
     - restart: restart only failed/unhealthy instances in the VMSS (az vmss restart, fire-and-forget)
@@ -90,6 +91,7 @@ if ($Help -or -not $rg) {
     Write-Host "                      rebuild        - git pull + rebuild system (requires -System)"
     Write-Host "                      deploy         - git pull + run full deployment workflow"
     Write-Host "                      install        - git pull + copy scripts only"
+    Write-Host "                      ping           - probe SSH port (TCP 22) reachability + FQDN"
     Write-Host "                      start          - power on all VMSS instances (fire-and-forget)"
     Write-Host "                      stop           - deallocate all VMSS instances (fire-and-forget)"
     Write-Host "                      restart        - restart only failed instances (fire-and-forget)"
@@ -108,6 +110,7 @@ if ($Help -or -not $rg) {
     Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action start"
     Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action stop"
     Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action restart"
+    Write-Host "  .\manage-vmss.ps1 -rg vazois-garnet -VmssName server -Action ping"
     Write-Host ""
     Write-Host "For detailed help: Get-Help .\manage-vmss.ps1 -Detailed"
     Write-Host ""
@@ -352,6 +355,105 @@ if ($Action -eq 'list') {
     }
     Write-Host ""
     return
+}
+
+# --- Ping (accessibility probe) ---
+# Probes each instance's SSH port (TCP 22) in parallel and prints a reachability
+# table with the instance's public IP and FQDN. Does not log in or run commands.
+if ($Action -eq 'ping') {
+    $pingPort = 22
+    $pingTimeoutMs = 3000
+    $anyFailed = $false
+
+    foreach ($vmss in $targetVmss) {
+        Write-Host "`n=== VMSS Ping: $vmss ===" -ForegroundColor Cyan
+
+        $ipsJson = az vmss list-instance-public-ips --resource-group $rg --name $vmss `
+            --query '[].{id:id, ip:ipAddress, fqdn:dnsSettings.fqdn}' -o json 2>$null
+
+        if ($LASTEXITCODE -ne 0 -or -not $ipsJson) {
+            Write-Warning "Failed to get public IPs for VMSS '$vmss'."
+            continue
+        }
+
+        $instances = @($ipsJson | ConvertFrom-Json)
+        if ($instances.Count -eq 0) {
+            Write-Host "  No instances with public IPs found." -ForegroundColor DarkGray
+            continue
+        }
+
+        Write-Host "Probing $($instances.Count) instance(s) on SSH port $pingPort..." -ForegroundColor Yellow
+
+        # Parallel TCP connect probe
+        $rows = $instances | ForEach-Object -Parallel {
+            $inst = $_
+            $ip = $inst.ip
+            # Extract numeric instance ID from the resource ID path
+            $instId = if ($inst.id -match '/virtualMachines/(\d+)/') { $Matches[1] } else { '?' }
+
+            $reachable = $false
+            $latency = ''
+            if ($ip) {
+                $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                try {
+                    $tcp = [System.Net.Sockets.TcpClient]::new()
+                    $task = $tcp.ConnectAsync($ip, $using:pingPort)
+                    if ($task.Wait([TimeSpan]::FromMilliseconds($using:pingTimeoutMs)) -and $tcp.Connected) {
+                        $reachable = $true
+                        $latency = "$([math]::Round($sw.Elapsed.TotalMilliseconds)) ms"
+                    }
+                    $tcp.Close()
+                } catch {
+                    $reachable = $false
+                }
+                $sw.Stop()
+            }
+
+            [PSCustomObject]@{
+                Idx       = $instId
+                Reachable = $reachable
+                Latency   = if ($reachable) { $latency } else { '--' }
+                IP        = if ($ip) { $ip } else { '(none)' }
+                FQDN      = if ($inst.fqdn) { $inst.fqdn } else { '' }
+            }
+        } -ThrottleLimit $instances.Count
+
+        $rows = @($rows | Sort-Object { [int]($_.Idx -replace '\D', '0') })
+
+        # Column widths
+        $wIdx = [Math]::Max('ID'.Length, (($rows | ForEach-Object { "$($_.Idx)".Length }) | Measure-Object -Maximum).Maximum)
+        $wLat = [Math]::Max('LATENCY'.Length, (($rows | ForEach-Object { $_.Latency.Length }) | Measure-Object -Maximum).Maximum)
+        $wIP  = [Math]::Max('IP'.Length, (($rows | ForEach-Object { $_.IP.Length }) | Measure-Object -Maximum).Maximum)
+
+        $header = "  {0}  {1}  {2}  {3}  {4}" -f 'ID'.PadRight($wIdx), 'REACHABLE', 'LATENCY'.PadRight($wLat), 'IP'.PadRight($wIP), 'FQDN'
+        Write-Host $header -ForegroundColor Cyan
+        Write-Host ("  {0}  {1}  {2}  {3}  {4}" -f ('-' * $wIdx), '---------', ('-' * $wLat), ('-' * $wIP), '----') -ForegroundColor DarkGray
+
+        foreach ($row in $rows) {
+            $reachLabel = if ($row.Reachable) { 'yes' } else { 'NO' }
+            $reachColor = if ($row.Reachable) { 'Green' } else { 'Red' }
+            Write-Host ("  {0}  " -f "$($row.Idx)".PadRight($wIdx)) -NoNewline
+            Write-Host $reachLabel.PadRight(9) -NoNewline -ForegroundColor $reachColor
+            Write-Host ("  {0}  {1}  {2}" -f $row.Latency.PadRight($wLat), $row.IP.PadRight($wIP), $row.FQDN) -ForegroundColor DarkGray
+        }
+
+        $reachCount = ($rows | Where-Object { $_.Reachable }).Count
+        $unreachCount = $rows.Count - $reachCount
+        $summaryColor = if ($unreachCount -gt 0) { 'Yellow' } else { 'Green' }
+        Write-Host "`n  Summary: $reachCount/$($rows.Count) reachable$(if ($unreachCount -gt 0) { " ($unreachCount unreachable)" })" -ForegroundColor $summaryColor
+
+        if ($unreachCount -gt 0) {
+            $anyFailed = $true
+            Write-Host "  Unreachable:" -ForegroundColor Red
+            $rows | Where-Object { -not $_.Reachable } | ForEach-Object {
+                $label = if ($_.FQDN) { $_.FQDN } else { "instance $($_.Idx)" }
+                Write-Host "    $label ($($_.IP))" -ForegroundColor Red
+            }
+        }
+    }
+
+    Write-Host ""
+    exit $(if ($anyFailed) { 1 } else { 0 })
 }
 
 # --- Power Operations (start / stop / restart) ---
@@ -636,10 +738,6 @@ function Get-SshCommand {
         'install' {
             $forceFlag = if ($Force) { " -Force" } else { "" }
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy$forceFlag"
-        }
-
-        'ping' {
-            return "echo pong && hostname"
         }
     }
 }
