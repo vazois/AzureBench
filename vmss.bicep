@@ -3,22 +3,15 @@ param location string
 param nsgId string
 param subnetName string
 param accSubnetName string
-// param clientSubnetName string  // Uncomment to enable separate client subnet (10.5.2.X)
 param proximityId string
 param vnetName string
 
 param vmssName string
 param instanceCount int
 
-// NOTE: vmssRole and clientSubnetName support separate subnets for server (10.5.1.X) and client (10.5.2.X).
-// Currently disabled — cluster-deploy.ps1 filters peers by VMSS hostname prefix, so both can share accSubnet.
-// Uncomment and remove the hardcoded dataSubnetName below to re-enable subnet separation.
-// @description('Role of this VMSS. Server uses accSubnet (10.5.1.X), client uses clientSubnet (10.5.2.X).')
-// @allowed([
-//   'server'
-//   'client'
-// ])
-// param vmssRole string
+// Server and client VMSS share accSubnet for their eth1 (data-plane) NICs; they are
+// kept separate at runtime by cluster-deploy.ps1, which filters discovered peers by
+// VMSS hostname prefix. (Subnet-level role separation is intentionally not modeled.)
 
 @allowed([
   'linux'
@@ -261,7 +254,6 @@ var zones = zoneStrategy == 'all' ? ['1', '2', '3'] : ['1']
 var useProximityGroup = zoneStrategy == 'single'
 var nicName = '${vmssName}-nic'
 var accNicName = '${vmssName}-acc-nic'
-// var dataSubnetName = vmssRole == 'server' ? accSubnetName : clientSubnetName
 var dataSubnetName = accSubnetName
 
 var ipTagsProfile = {

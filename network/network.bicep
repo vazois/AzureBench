@@ -10,16 +10,24 @@ param networkSecurityGroupName string
 param virtualNetworkName string
 param subnetName string
 param accSubnetName string
-param clientSubnetName string
 param proximityGroupName string
 
-// /16 VNet carved into three /18 subnets (~16,379 usable IPs each) to support
-// thousands of VMs. Each VM consumes one IP in subnetName (primary NIC + public IP)
-// and one in accSubnetName (eth1 / accelerated-networking NIC).
+// /16 VNet split evenly into two /17 subnets (~32,763 usable IPs each) to support
+// tens of thousands of VMs. Each VM consumes one IP in subnetName (primary NIC +
+// public IP) and one in accSubnetName (eth1 / accelerated-networking NIC), so the
+// two subnets are sized equally (1 VM = 1 IP in each).
 var addressPrefix = '10.5.0.0/16'
-var subnetAddressPrefix = '10.5.0.0/18'       // 10.5.0.0   - 10.5.63.255
-var accSubnetAddressPrefix = '10.5.64.0/18'   // 10.5.64.0  - 10.5.127.255
-var clientSubnetAddressPrefix = '10.5.128.0/18' // 10.5.128.0 - 10.5.191.255
+var subnetAddressPrefix = '10.5.0.0/17'       // 10.5.0.0   - 10.5.127.255
+var accSubnetAddressPrefix = '10.5.128.0/17'  // 10.5.128.0 - 10.5.255.255
+
+// The accelerated (eth1) NICs in accSubnet have no public IP and only carry
+// private intra-cluster traffic (they never need internet egress). To stop
+// relying on Azure "default outbound access" (being retired per SFI NS261), we
+// set defaultOutboundAccess:false on that subnet, giving it no outbound internet
+// access at all. The primary subnet is unaffected — each primary NIC already has
+// its own Standard public IP for outbound.
+// Note: defaultOutboundAccess is immutable after subnet creation, so applying this
+// requires (re)creating the subnets (full redeploy).
 
 // Network Security Group — shared by both subnets
 resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
@@ -66,7 +74,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2020-06-01' = {
 }
 
 // Virtual Network with two subnets, both associated with the same NSG
-resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: virtualNetworkName
   location: location
   properties: {
@@ -92,15 +100,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2020-06-01' = {
           privateEndpointNetworkPolicies: 'Enabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
           networkSecurityGroup: { id: nsg.id }
-        }
-      }
-      {
-        name: clientSubnetName
-        properties: {
-          addressPrefix: clientSubnetAddressPrefix
-          privateEndpointNetworkPolicies: 'Enabled'
-          privateLinkServiceNetworkPolicies: 'Enabled'
-          networkSecurityGroup: { id: nsg.id }
+          defaultOutboundAccess: false
         }
       }
     ]
@@ -120,5 +120,4 @@ output nsgId string = nsg.id
 output vnetName string = vnet.name
 output subnetName string = subnetName
 output accSubnetName string = accSubnetName
-output clientSubnetName string = clientSubnetName
 output proximityId string = prg.id
