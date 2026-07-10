@@ -137,8 +137,8 @@ Pool: True
 [SET]
 (batch, value)
 (   64,     8):   244,949.20 Kops/sec |  3.663 GB/s data | 10.496 GB/s wire
-(  256,     8): 494,746.60 Kops/sec |  7.365 GB/s data | 21.195 GB/s wire 
-( 1024,     8): 810,899.80 Kops/sec | 12.090 GB/s data | 34.739 GB/s wire
+(  256,     8):   494,746.60 Kops/sec |  7.365 GB/s data | 21.195 GB/s wire 
+( 1024,     8):   810,899.80 Kops/sec | 12.090 GB/s data | 34.739 GB/s wire
 ( 4096,     8): 1,105,744.80 Kops/sec | 16.477 GB/s data | 47.363 GB/s wire 
 
 (   64,    100): 250,462.00 Kops/sec | 25.196 GB/s data | 32.661 GB/s wire

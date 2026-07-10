@@ -39,6 +39,9 @@ param osDiskType string
   'Fas_v6: [8, 32,64]'
   'Fas_v7: [8, 32,64,80]'
   'Eas_v7: [8, 32,64,80]'
+  // Burstable v2 (Intel Bsv2 / AMD Basv2)
+  'Bs_v2: [2, 4, 8, 16, 32]'
+  'Bas_v2: [2, 4, 8, 16, 32]'
   // ARM v5: Ampere Altra
   'Dpls_v5: [8, 32, 64]'
   'Dps_v5: [8, 32, 64]'
@@ -57,6 +60,11 @@ param osDiskType string
   // Intel v5
   'Ds_v5: [8, 32, 48, 64, 96]'
   'Es_v5: [8, 32, 48, 64, 96]'
+  // Storage-optimized L-series (AMD Las / Intel Ls)
+  'Las_v3: [8, 16, 32, 48, 64, 80]'
+  'Ls_v3: [8, 16, 32, 48, 64, 80]'
+  'Las_v4: [2, 4, 8, 16, 32, 48, 64, 80, 96]'
+  'Ls_v4: [2, 4, 8, 16, 32, 48, 64, 80, 96]'
 ])
 param vmFamily string
 
@@ -87,7 +95,7 @@ var vmSKU = familyName == 'DSv2' ? 'Standard_DS5_v2' : 'Standard_${seriesLetter}
 
 // ARM-based SKUs do not support Trusted Launch.
 // x64 families: E_v3, Fs_v2, Fas_v6, Ds_v6, Es_v6, DSv2
-var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Es_v6', 'DSv2']
+var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Es_v6', 'DSv2', 'Bs_v2', 'Bas_v2', 'Las_v3', 'Ls_v3', 'Las_v4', 'Ls_v4']
 var supportsTrustedLaunch = contains(x64Families, familyName)
 var securityProfileConfig = supportsTrustedLaunch
   ? {
