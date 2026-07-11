@@ -151,7 +151,6 @@ Cluster: 74 primaries + 0 replicas
 DbSize = ~1,000,000, (13513 x 74)
 Instances  : 250 (1 x 250 hosts)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
 Workers    : 8000 total (32 per instance x 250 instances)
 Pool: TRUE
 [GET]
@@ -179,6 +178,7 @@ Pool: FALSE
 (4096, 100): 2,375,580.10 Kops/sec | 238.941 GB/s data | 298.647 GB/s wire
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 Cluster: 37 primaries + 37 replicas
 DbSize = ~1,000,000 (27028 x 37)
 Instances  : 250 (1 x 250 hosts)
@@ -196,16 +196,38 @@ Pool: TRUE
 (1024, 100): 1,267,221.70 Kops/sec | 127.460 GB/s data |  96.614 GB/s wire
 (4096, 100): 1,674,280.10 Kops/sec | 168.402 GB/s data | 130.075 GB/s wire
 
-[SET]
-(  64, 8):  542,113.90 Kops/sec |  8.070 GB/s data | 19.572 GB/s wire
-( 256, 8):  789,381.80 Kops/sec | 11.766 GB/s data | 28.511 GB/s wire
-(1024, 8):  790,232.00 Kops/sec | 11.774 GB/s data | 28.688 GB/s wire
-(4096, 8):  746,297.00 Kops/sec | 11.113 GB/s data | 27.648 GB/s wire
+[SET] (singlelog)
+(  64, 8): 169,025.70 Kops/sec |  2.520 GB/s data |  7.250 GB/s wire
+( 256, 8): 295,715.90 Kops/sec |  4.375 GB/s data | 12.674 GB/s wire
+(1024, 8): 360,064.90 Kops/sec |  5.352 GB/s data | 15.427 GB/s wire
+(4096, 8): 809,223.70 Kops/sec | 12.061 GB/s data | 34.661 GB/s wire
+
+(  64, 100): 141,488.00 Kops/sec | 14.240 GB/s data | 18.449 GB/s wire
+( 256, 100): 259,525.50 Kops/sec | 26.099 GB/s data | 33.840 GB/s wire
+(1024, 100): 300,867.30 Kops/sec | 30.265 GB/s data | 39.221 GB/s wire
+(4096, 100): 549,646.50 Kops/sec | 55.289 GB/s data | 71.664 GB/s wire
+
+[SET] (mlog)
+(  64, 8):
+( 256, 8):
+(1024, 8): 
+(4096, 8): 
 
 (  64, 100):
 ( 256, 100):
 (1024, 100):
 (4096, 100):
+
+[SET] (singlelog) - 50% replica reads
+(  64, 8):  542,113.90 Kops/sec |  8.070 GB/s data | 19.572 GB/s wire
+( 256, 8):  789,381.80 Kops/sec | 11.766 GB/s data | 28.511 GB/s wire
+(1024, 8):  790,232.00 Kops/sec | 11.774 GB/s data | 28.688 GB/s wire
+(4096, 8):  746,297.00 Kops/sec | 11.113 GB/s data | 27.648 GB/s wire
+
+(  64, 100): 262,943.50 Kops/sec | 26.449 GB/s data | 26.823 GB/s wire
+( 256, 100): 402,760.60 Kops/sec | 40.510 GB/s data | 41.441 GB/s wire
+(1024, 100): 474,480.60 Kops/sec | 47.730 GB/s data | 49.750 GB/s wire
+(4096, 100): 499,619.90 Kops/sec | 50.248 GB/s data | 53.279 GB/s wire
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Workers    : 37000 total (148 per instance x 250 instances)
@@ -221,7 +243,108 @@ Pool: FALSE
 (1024, 100): 2,124,302.90 Kops/sec | 213.670 GB/s data | 160.804 GB/s wire
 (4096, 100): 2,533,564.30 Kops/sec | 254.836 GB/s data | 192.711 GB/s wire
 
-[SET]
+[SET] (singlelog)
+(  64, 8):   548,395.40 Kops/sec |  8.178 GB/s data | 23.492 GB/s wire
+( 256, 8):   784,753.80 Kops/sec | 11.697 GB/s data | 33.624 GB/s wire
+(1024, 8): 1,124,796.90 Kops/sec | 16.753 GB/s data | 48.188 GB/s wire
+(4096, 8): 1,796,784.40 Kops/sec | 26.775 GB/s data | 76.979 GB/s wire
+
+(  64, 100):   433,326.20 Kops/sec |  43.585 GB/s data |  56.496 GB/s wire
+( 256, 100):   780,338.50 Kops/sec |  78.488 GB/s data | 101.735 GB/s wire
+(1024, 100):   899,966.50 Kops/sec |  90.526 GB/s data | 117.340 GB/s wire
+(4096, 100): 1,240,088.00 Kops/sec | 124.730 GB/s data | 161.684 GB/s wire
+
+[SET] (mlog)
+(  64, 8):
+( 256, 8):
+(1024, 8):
+(4096, 8):
+
+(  64, 100):
+( 256, 100):
+(1024, 100):
+(4096, 100):
+
+[SET] (singlelog) - 50% replica reads
+(  64, 8):   916,145.10 Kops/sec | 13.648 GB/s data |  32.129 GB/s wire
+( 256, 8): 1,316,296.70 Kops/sec | 19.615 GB/s data |  45.336 GB/s wire
+(1024, 8): 1,930,330.10 Kops/sec | 28.763 GB/s data |  65.850 GB/s wire
+(4096, 8): 3,476,184.90 Kops/sec | 51.799 GB/s data | 122.135 GB/s wire
+
+(  64, 100):   765,855.50 Kops/sec |  77.034 GB/s data |  68.377 GB/s wire
+( 256, 100): 1,058,995.00 Kops/sec | 106.513 GB/s data |  87.394 GB/s wire
+(1024, 100): 1,587,830.00 Kops/sec | 159.710 GB/s data | 136.556 GB/s wire
+(4096, 100): 2,689,502.90 Kops/sec | 270.528 GB/s data | 256.973 GB/s wire
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+<VALKEY>
+
+Cluster: 37 primaries + 37 replicas
+DbSize = ~1,000,000 (27028 x 37)
+Instances  : 250 (1 x 250 hosts)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Workers    : 8000 total (32 per instance x 250 instances)
+Pool: TRUE
+[GET]
+(  64, 8): 73,259.40 Kops/sec |  1.099 GB/s data |  2.800 GB/s wire
+( 256, 8): 88,416.40 Kops/sec |  1.304 GB/s data |  3.379 GB/s wire
+(1024, 8): 78,209.70 Kops/sec |  1.164 GB/s data |  2.996 GB/s wire
+(4096, 8): 81,563.80 Kops/sec |  1.222 GB/s data |  3.103 GB/s wire
+
+(  64, 100): 54,386.00 Kops/sec |  5.472 GB/s data |  6.834 GB/s wire
+( 256, 100): 74,074.80 Kops/sec |  7.455 GB/s data |  9.309 GB/s wire
+(1024, 100): 73,958.60 Kops/sec |  7.440 GB/s data |  9.297 GB/s wire
+(4096, 100): 77,337.50 Kops/sec |  7.778 GB/s data |  9.730 GB/s wire
+
+[SET] (singlelog)
+(  64, 8): 27,418.30 Kops/sec |  0.439 GB/s data |  1.185 GB/s wire
+( 256, 8): 30,120.30 Kops/sec |  0.463 GB/s data |  1.291 GB/s wire
+(1024, 8): 33,125.10 Kops/sec |  0.523 GB/s data |  1.424 GB/s wire
+(4096, 8): 30,714.70 Kops/sec |  0.436 GB/s data |  1.308 GB/s wire
+
+(  64, 100): 20,073.30 Kops/sec |  2.027 GB/s data |  2.608 GB/s wire
+( 256, 100): 23,020.30 Kops/sec |  2.319 GB/s data |  2.998 GB/s wire
+(1024, 100): 27,179.60 Kops/sec |  2.735 GB/s data |  3.543 GB/s wire
+(4096, 100): 29,262.10 Kops/sec |  2.948 GB/s data |  3.816 GB/s wire
+
+[SET] (singlelog) - 50% replica reads
+(  64, 8):
+( 256, 8):
+(1024, 8):
+(4096, 8):
+
+(  64, 100):
+( 256, 100):
+(1024, 100):
+(4096, 100):
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Workers    : 37000 total (148 per instance x 250 instances)
+Pool: FALSE
+[GET]
+(  64, 8):
+( 256, 8):
+(1024, 8):
+(4096, 8):
+
+(  64, 100):
+( 256, 100):
+(1024, 100):
+(4096, 100):
+
+[SET] (singlelog)
+(  64, 8):
+( 256, 8):
+(1024, 8):
+(4096, 8):
+
+(  64, 100):
+( 256, 100):
+(1024, 100):
+(4096, 100):
+
+[SET] (singlelog) - 50% replica reads
 (  64, 8):
 ( 256, 8):
 (1024, 8):

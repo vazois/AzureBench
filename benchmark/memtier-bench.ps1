@@ -196,7 +196,9 @@ Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
 # --- SSH options ---
-$sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
+# UserKnownHostsFile=NUL prevents parallel ssh sessions from racing on a shared
+# known_hosts file (rename to .old fails under contention, causing false failures).
+$sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes', '-o', 'UserKnownHostsFile=NUL')
 
 # --- Results directory ---
 $resultsDir = "$PSScriptRoot\results"

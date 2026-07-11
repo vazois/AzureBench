@@ -283,7 +283,9 @@ Write-Host ""
 # --- Launch benchmark ---
 
 # SSH options for inline mode
-$sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes')
+# UserKnownHostsFile=NUL prevents parallel ssh sessions from racing on a shared
+# known_hosts file (rename to .old fails under contention, causing false failures).
+$sshOpts = @('-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes', '-o', 'UserKnownHostsFile=NUL')
 
 if ($Background) {
     # Background mode: spawn Windows Terminal panes for visual inspection
