@@ -11,15 +11,15 @@ Instances  : 250 (1 x 250 hosts)
 Workers    : 16000 total (64 per instance x 250 instances)
 Pool: TRUE
 [GET]
-(  64, 8):   936,048.20 Kops/sec | 13.944 GB/s data |  29.648 GB/s wire   849,806.90 Kops/sec | 12.665 GB/s data |  32.449 GB/s wire
-( 256, 8): 2,006,068.60 Kops/sec | 29.883 GB/s data |  63.590 GB/s wire 1,808,601.90 Kops/sec | 26.954 GB/s data |  69.053 GB/s wire
-(1024, 8): 2,858,011.50 Kops/sec | 42.588 GB/s data |  90.756 GB/s wire 2,850,508.00 Kops/sec | 42.478 GB/s data | 108.844 GB/s wire
-(4096, 8): 5,576,561.90 Kops/sec | 83.092 GB/s data | 177.642 GB/s wire 4,158,201.80 Kops/sec | 61.962 GB/s data | 158.775 GB/s wire
+(  64, 8):   849,806.90 Kops/sec | 12.665 GB/s data |  32.449 GB/s wire
+( 256, 8): 1,808,601.90 Kops/sec | 26.954 GB/s data |  69.053 GB/s wire
+(1024, 8): 2,850,508.00 Kops/sec | 42.478 GB/s data | 108.844 GB/s wire
+(4096, 8): 4,158,201.80 Kops/sec | 61.962 GB/s data | 158.775 GB/s wire
 
-(  64, 100):   777,273.90 Kops/sec |  78.172 GB/s data | 58.752 GB/s wire   692,743.60 Kops/sec |  69.688 GB/s data |  87.094 GB/s wire
-( 256, 100):   913,133.00 Kops/sec |  91.853 GB/s data | 69.337 GB/s wire   992,639.80 Kops/sec |  99.839 GB/s data | 124.800 GB/s wire
-(1024, 100): 1,267,221.70 Kops/sec | 127.460 GB/s data | 96.614 GB/s wire 1,198,472.30 Kops/sec | 120.542 GB/s data | 150.682 GB/s wire
-(4096, 100): 1,162,601.40 Kops/sec | 116.938 GB/s data | 95.509 GB/s wire 1,202,047.40 Kops/sec | 120.905 GB/s data | 151.131 GB/s wire
+(  64, 100):   692,743.60 Kops/sec |  69.688 GB/s data |  87.094 GB/s wire
+( 256, 100):   992,639.80 Kops/sec |  99.839 GB/s data | 124.800 GB/s wire
+(1024, 100): 1,198,472.30 Kops/sec | 120.542 GB/s data | 150.682 GB/s wire
+(4096, 100): 1,202,047.40 Kops/sec | 120.905 GB/s data | 151.131 GB/s wire
 
 [SET] (singlelog)
 (  64, 8):   363,126.90 Kops/sec |  5.401 GB/s data | 13.101 GB/s wire
@@ -43,16 +43,16 @@ Pool: TRUE
 (1024, 100): 299,419.20 Kops/sec | 30.115 GB/s data | 39.042 GB/s wire
 (4096, 100): 340,710.20 Kops/sec | 34.274 GB/s data | 44.421 GB/s wire
 
-[SET] (mlog)
-(  64, 8):
-( 256, 8):
-(1024, 8): 
-(4096, 8): 
+[SET] (mlogx8)
+(  64, 8): 174,023.70 Kops/sec |  2.597 GB/s data |  7.466 GB/s wire
+( 256, 8): 295,279.60 Kops/sec |  4.428 GB/s data | 12.645 GB/s wire
+(1024, 8): 599,972.30 Kops/sec |  8.943 GB/s data | 25.703 GB/s wire
+(4096, 8): 687,137.50 Kops/sec | 10.247 GB/s data | 29.428 GB/s wire
 
-(  64, 100):
-( 256, 100):
-(1024, 100):
-(4096, 100):
+(  64, 100): 146,587.60 Kops/sec | 14.742 GB/s data | 19.107 GB/s wire
+( 256, 100): 300,698.30 Kops/sec | 30.248 GB/s data | 39.207 GB/s wire
+(1024, 100): 534,060.40 Kops/sec | 53.722 GB/s data | 69.639 GB/s wire
+(4096, 100): 604,071.90 Kops/sec | 60.753 GB/s data | 78.763 GB/s wire
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Workers    : 37000 total (148 (4 threads x 37 shards) per instance x 250 instances)
@@ -110,7 +110,7 @@ Cluster: 74 primaries + 74 replicas
 DbSize = ~1,000,000 (27028 x 37)
 Instances  : 250 (1 x 250 hosts)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Workers    : 8000 total (32 per instance x 250 instances)
+Workers    : 16000 total (64 per instance x 250 instances)
 Pool: TRUE
 [GET]
 (  64, 8): 203,440.70 Kops/sec |  3.028 GB/s data |  6.460 GB/s wire
