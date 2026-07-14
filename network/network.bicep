@@ -23,9 +23,9 @@ var accSubnetAddressPrefix = '10.5.128.0/17'  // 10.5.128.0 - 10.5.255.255
 // The accelerated (eth1) NICs in accSubnet have no public IP and only carry
 // private intra-cluster traffic (they never need internet egress). To stop
 // relying on Azure "default outbound access" (being retired per SFI NS261), we
-// set defaultOutboundAccess:false on that subnet, giving it no outbound internet
-// access at all. The primary subnet is unaffected — each primary NIC already has
-// its own Standard public IP for outbound.
+// set defaultOutboundAccess:false on BOTH subnets, giving them no implicit
+// outbound internet access. The primary subnet's VMs are unaffected in practice
+// because each primary NIC already has its own Standard public IP for outbound.
 // Note: defaultOutboundAccess is immutable after subnet creation, so applying this
 // requires (re)creating the subnets (full redeploy).
 
@@ -91,6 +91,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           privateEndpointNetworkPolicies: 'Enabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
           networkSecurityGroup: { id: nsg.id }
+          defaultOutboundAccess: false
         }
       }
       {

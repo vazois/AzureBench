@@ -1,184 +1,9 @@
-+++VALKEY+++
-op = GET, DbSize = ~1,000,000, Pipeline = true, (18519 x 54)
-32 benchmark instances (shards, threads, workers, batch, value)
-             (   54,       32,    1024,    16,   8): 29,206.70 Kops/sec |  0.434 GB/s data |  1.114 GB/s wire
-             (   54,       32,    1024,    32,   8): 34,653.70 Kops/sec |  0.519 GB/s data |  1.325 GB/s wire
-             (   54,       32,    1024,    64,   8): 37,975.70 Kops/sec |  0.565 GB/s data |  1.448 GB/s wire
-             (   54,       32,    1024,   128,   8): 40,617.10 Kops/sec |  0.609 GB/s data |  1.550 GB/s wire
-             
-             (   54,       32,    1024,    16,   32): 28,582.20 Kops/sec |  1.067 GB/s data |  1.758 GB/s wire
-             (   54,       32,    1024,    32,   32): 34,082.40 Kops/sec |  1.268 GB/s data |  2.094 GB/s wire
-             (   54,       32,    1024,    64,   32): 37,246.80 Kops/sec |  1.390 GB/s data |  2.288 GB/s wire
-             (   54,       32,    1024,   128,   32): 41,126.20 Kops/sec |  1.532 GB/s data |  2.529 GB/s wire
-
-             (   54,       32,    1024,    16,   128): 26,119.60 Kops/sec |  3.309 GB/s data |  3.965 GB/s wire
-             (   54,       32,    1024,    32,   128): 30,827.00 Kops/sec |  3.901 GB/s data |  4.680 GB/s wire
-             (   54,       32,    1024,    64,   128): 34,777.50 Kops/sec |  4.404 GB/s data |  5.276 GB/s wire
-             (   54,       32,    1024,   128,   128): 37,745.80 Kops/sec |  4.780 GB/s data |  5.733 GB/s wire
-
-             (   54,       32,    1024,     16,   256): 26,477.90 Kops/sec |  6.340 GB/s data |  7.176 GB/s wire
-             (   54,       32,    1024,     32,   256): 31,935.70 Kops/sec |  7.643 GB/s data |  8.655 GB/s wire
-             (   54,       32,    1024,     64,   256): 34,727.70 Kops/sec |  8.312 GB/s data |  9.411 GB/s wire
-             (   54,       32,    1024,    128,   256): 37,375.50 Kops/sec |  8.944 GB/s data | 10.131 GB/s wire
-
-
-op = SET, DbSize = ~1,000,000 (18519 x 54)
-32 benchmark instances (shards, threads, workers, batch, value)
-             (    54,      32,    1024,    16,   32): 48,584.50 Kops/sec |  1.808 GB/s data |  2.452 GB/s wire
-             (    54,      32,    1024,    32,   32): 59,539.70 Kops/sec |  2.217 GB/s data |  2.973 GB/s wire
-             (    54,      32,    1024,    64,   32): 72,486.40 Kops/sec |  2.698 GB/s data |  3.599 GB/s wire
-             (    54,      32,    1024,   128,   32): 83,639.50 Kops/sec |  3.116 GB/s data |  4.141 GB/s wire
-
-             (    54,      32,    1024,    16,   128): 37,081.60 Kops/sec |  4.696 GB/s data |  5.224 GB/s wire
-             (    54,      32,    1024,    32,   128): 48,281.50 Kops/sec |  6.113 GB/s data |  6.772 GB/s wire
-             (    54,      32,    1024,    64,   128): 61,943.70 Kops/sec |  7.845 GB/s data |  8.673 GB/s wire
-             (    54,      32,    1024,   128,   128): 74,696.50 Kops/sec |  9.460 GB/s data | 10.448 GB/s wire
-
-             (   54,       32,    1024,     16,   256): 21,527.10 Kops/sec |  5.151 GB/s data |  5.936 GB/s wire
-             (   54,       32,    1024,     32,   256): 24,673.40 Kops/sec |  5.906 GB/s data |  6.799 GB/s wire
-             (   54,       32,    1024,     64,   256): 27,292.90 Kops/sec |  6.533 GB/s data |  7.525 GB/s wire
-             (   54,       32,    1024,    128,   256): 28,341.70 Kops/sec |  6.783 GB/s data |  7.812 GB/s wire
-
-op = SET, DbSize = ~1,000,000, Pipeline = true, (166666 x 6), AOF
-            (     54,      32,    1024,    64,   256): 17,258.10 Kops/sec |  4.243 GB/s data |  4.756 GB/s wire
-op = MSET, DbSize = ~1,000,000, Pipeline = true, (166666 x 6), AOF
-            (     54,      32,    1024,    64,   256): 33,461.30 Kops/sec |  8.228 GB/s data |  8.674 GB/s wire
-
-++++++++++++++++++++++++++++++++++++++++++++GARNET++++++++++++++++++++++++++++++++++++++++++++
-op = GET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6)
-32 benchmark instances (shards, threads, workers, batch, value)
-             (    6,       32,    1024,    16,   8):  90,845.90 Kops/sec |  1.353 GB/s data |  3.471 GB/s wire
-             (    6,       32,    1024,    32,   8): 173,465.10 Kops/sec |  2.584 GB/s data |  6.623 GB/s wire
-             (    6,       32,    1024,    64,   8): 278,578.60 Kops/sec |  4.150 GB/s data | 10.634 GB/s wire
-             (    6,       32,    1024,   128,   8): 407,855.60 Kops/sec |  6.077 GB/s data | 15.572 GB/s wire
-             (    6,       32,    1024,   256,   8): 523,696.60 Kops/sec |  7.803 GB/s data | 19.997 GB/s wire
-             (    6,       32,    1024,   512,   8): 628,410.50 Kops/sec |  9.363 GB/s data | 23.998 GB/s wire
-
-             (    6,       32,    1024,    16,   32):  89,881.30 Kops/sec |  3.347 GB/s data |  5.527 GB/s wire
-             (    6,       32,    1024,    32,   32): 170,377.40 Kops/sec |  6.347 GB/s data | 10.474 GB/s wire
-             (    6,       32,    1024,    64,   32): 247,759.50 Kops/sec |  9.228 GB/s data | 15.230 GB/s wire
-             (    6,       32,    1024,   128,   32): 380,985.30 Kops/sec | 14.194 GB/s data | 23.418 GB/s wire
-             (    6,       32,    1024,   256,   32): 489,682.00 Kops/sec | 18.243 GB/s data | 30.100 GB/s wire
-             (    6,       32,    1024,   512,   32): 577,692.20 Kops/sec | 21.522 GB/s data | 35.510 GB/s wire
-
-             (    6,       32,    1024,    16,   128):  74,942.50 Kops/sec |  9.495 GB/s data | 11.377 GB/s wire
-             (    6,       32,    1024,    32,   128): 134,942.50 Kops/sec | 17.092 GB/s data | 20.485 GB/s wire
-             (    6,       32,    1024,    64,   128): 169,244.40 Kops/sec | 21.437 GB/s data | 25.693 GB/s wire
-             (    6,       32,    1024,   128,   128): 171,658.80 Kops/sec | 21.741 GB/s data | 26.056 GB/s wire
-
-             (    6,       32,    1024,    16,   256): 72,243.50 Kops/sec | 17.292 GB/s data | 19.581 GB/s wire
-             (    6,       32,    1024,    32,   256): 88,917.60 Kops/sec | 21.282 GB/s data | 24.098 GB/s wire
-             (    6,       32,    1024,    64,   256): 89,354.50 Kops/sec | 21.388 GB/s data | 24.215 GB/s wire
-             (    6,       32,    1024,   128,   256): 89,398.20 Kops/sec | 21.399 GB/s data | 24.225 GB/s wire
-
-op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6)
-32 benchmark instances (shards, threads, workers, batch, value)             
-             (     6,      32,    1024,    16,   32):  90,893.70 Kops/sec |  3.387 GB/s data |  4.592 GB/s wire
-             (     6,      32,    1024,    32,   32): 146,626.70 Kops/sec |  5.464 GB/s data |  7.321 GB/s wire
-             (     6,      32,    1024,    64,   32): 266,936.70 Kops/sec |  9.943 GB/s data | 13.261 GB/s wire
-             (     6,      32,    1024,   128,   32): 334,786.00 Kops/sec | 12.469 GB/s data | 22.137 GB/s wire
-
-             (     6,      32,    1024,    16,   128):  74,160.30 Kops/sec |  9.396 GB/s data | 10.448 GB/s wire
-             (     6,      32,    1024,    32,   128): 139,683.40 Kops/sec | 17.694 GB/s data | 19.595 GB/s wire
-             (     6,      32,    1024,    64,   128): 242,038.50 Kops/sec | 30.657 GB/s data | 33.888 GB/s wire
-             (     6,      32,    1024,   128,   128): 303,885.70 Kops/sec | 38.489 GB/s data | 42.502 GB/s wire
-             
-             (     6,      32,    1024,    16,   256):  75,166.40 Kops/sec | 17.991 GB/s data | 20.724 GB/s wire
-             (     6,      32,    1024,    32,   256): 135,286.10 Kops/sec | 32.384 GB/s data | 37.294 GB/s wire
-             (     6,      32,    1024,    64,   256): 155,839.10 Kops/sec | 37.300 GB/s data | 42.961 GB/s wire
-             (     6,      32,    1024,   128,   256): 156,326.80 Kops/sec | 37.416 GB/s data | 43.097 GB/s wire
-
-op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), AOF
-32 benchmark instances (shards, threads, workers, batch, value)             
-            (     6,      32,    1024,    64,   128):  44,276.50 Kops/sec |  5.606 GB/s data |  6.928 GB/s wire
-            (    24,      32,    1024,    64,   128): 135,111.00 Kops/sec | 17.113 GB/s data | 21.137 GB/s wire
-
-            (     6,      32,    1024,    64,   256):  31,250.70 Kops/sec |  7.685 GB/s data |  8.614 GB/s wire
-            (    24,      32,    1024,    64,   256): 143,767.30 Kops/sec | 35.348 GB/s data | 39.633 GB/s wire
-            (    54,      32,    1024,    64,   256): 116,302.60 Kops/sec | 28.597 GB/s data | 32.061 GB/s wire
-
-op = MSET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), AOF
-32 benchmark instances (shards, threads, workers, batch, value)             
-            (     6,      32,    1024,    64,   256): 30,706.90 Kops/sec |  7.548 GB/s data |  7.960 GB/s wire
-
-op = SET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
-32 benchmark instances (shards, threads, workers, batch, value)             
-            (     6,      32,    1024,    64,   256):  73,932.70 Kops/sec | 18.179 GB/s data | 20.382 GB/s wire                        
-            (    24,      32,    1024,    64,   256): 135,885.40 Kops/sec | 33.411 GB/s data | 37.456 GB/s wire
-
-op = MSET, DbSize = ~1,000,000, Pipeline = true, (166667 x 6), x16 AOF
-32 benchmark instances (shards, threads, workers, batch, value)             
-            (     6,      32,    1024,    64,   256): 69,614.10 Kops/sec | 17.116 GB/s data | 18.044 GB/s wire
-
-
 _______________________________________________________
 +++++++++++++++++ LARGE CLUSTER +++++++++++++++++++++++
 _______________________________________________________
-
 <GARNET>
-DbSize = ~1,000,000 (13334 x 75)
-Instances  : 225 (1 x 225 hosts)
-Workers    : 3600 total (16 per instance x 225 instances)
-Pool: True
-
-[GET]
-(batch, value)
-(   64,     8):   418,042.20 Kops/sec |  6.227 GB/s data |  15.963 GB/s wire
-(  256,     8): 1,965,703.00 Kops/sec | 29.289 GB/s data |  75.065 GB/s wire
-( 1024,     8): 2,637,678.90 Kops/sec | 39.307 GB/s data | 100.716 GB/s wire
-( 4096,     8): 2,428,705.90 Kops/sec | 36.194 GB/s data |  92.746 GB/s wire
-
-(   64,    100):   363,695.70 Kops/sec |  36.588 GB/s data |  45.728 GB/s wire
-(  256,    100):   806,306.70 Kops/sec |  81.101 GB/s data | 101.378 GB/s wire
-( 1024,    100):   998,109.30 Kops/sec | 100.393 GB/s data | 125.490 GB/s wire
-( 4096,    100): 1,084,963.80 Kops/sec | 109.127 GB/s data | 136.413 GB/s wire
-
-[SET]
-(batch, value)
-(   64,     8):   244,949.20 Kops/sec |  3.663 GB/s data | 10.496 GB/s wire
-(  256,     8):   494,746.60 Kops/sec |  7.365 GB/s data | 21.195 GB/s wire 
-( 1024,     8):   810,899.80 Kops/sec | 12.090 GB/s data | 34.739 GB/s wire
-( 4096,     8): 1,105,744.80 Kops/sec | 16.477 GB/s data | 47.363 GB/s wire 
-
-(   64,    100): 250,462.00 Kops/sec | 25.196 GB/s data | 32.661 GB/s wire
-(  256,    100): 439,840.80 Kops/sec | 44.236 GB/s data | 57.349 GB/s wire
-( 1024,    100): 758,292.50 Kops/sec | 76.268 GB/s data | 98.880 GB/s wire
-( 4096,    100): 669,366.20 Kops/sec | 67.325 GB/s data | 87.269 GB/s wire
-
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Cluster: 74 primaries + 0 replicas
-DbSize = ~1,000,000, (13513 x 74)
-Instances  : 250 (1 x 250 hosts)
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Workers    : 8000 total (32 per instance x 250 instances)
-Pool: TRUE
-[GET]
-(  64, 8):   404,479.80 Kops/sec |  6.028 GB/s data |  15.452 GB/s wire
-( 256, 8): 1,208,949.50 Kops/sec | 18.017 GB/s data |  46.158 GB/s wire
-(1024, 8): 2,497,379.60 Kops/sec | 37.212 GB/s data |  95.363 GB/s wire
-(4096, 8): 4,617,868.70 Kops/sec | 68.812 GB/s data | 176.338 GB/s wire
-           
-(  64, 100):   464,749.00 Kops/sec |  46.743 GB/s data |  58.437 GB/s wire
-( 256, 100):   785,581.30 Kops/sec |  79.016 GB/s data |  98.772 GB/s wire
-(1024, 100): 1,094,962.40 Kops/sec | 110.136 GB/s data | 137.664 GB/s wire
-(4096, 100): 1,118,260.70 Kops/sec | 112.487 GB/s data | 140.601 GB/s wire
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Workers    : 74000 total (296 per instance x 250 instances)
-Pool: FALSE
-[GET]
-(  64, 8): 1,659,453.10 Kops/sec | 24.730 GB/s data  |  63.363 GB/s wire
-( 256, 8): 3,742,745.10 Kops/sec | 55.771 GB/s data  | 142.911 GB/s wire
-(1024, 8): 6,744,340.10 Kops/sec | 100.502 GB/s data | 257.527 GB/s wire
-(4096, 8): 8,480,890.60 Kops/sec | 126.367 GB/s data | 323.831 GB/s wire
-
-(  64, 100): 1,261,805.40 Kops/sec | 126.913 GB/s data | 158.624 GB/s wire
-( 256, 100): 2,090,684.20 Kops/sec | 210.287 GB/s data | 262.834 GB/s wire
-(1024, 100): 2,331,918.50 Kops/sec | 234.549 GB/s data | 293.156 GB/s wire
-(4096, 100): 2,375,580.10 Kops/sec | 238.941 GB/s data | 298.647 GB/s wire
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
 Cluster: 37 primaries + 37 replicas
 DbSize = ~1,000,000 (27028 x 37)
 Instances  : 250 (1 x 250 hosts)
@@ -186,26 +11,37 @@ Instances  : 250 (1 x 250 hosts)
 Workers    : 16000 total (64 per instance x 250 instances)
 Pool: TRUE
 [GET]
-(  64, 8):   424,435.60 Kops/sec |  6.323 GB/s data |  13.461 GB/s wire
-( 256, 8): 1,461,892.30 Kops/sec | 21.782 GB/s data |  46.353 GB/s wire
-(1024, 8): 2,335,318.60 Kops/sec | 34.794 GB/s data |  74.199 GB/s wire
-(4096, 8): 4,514,348.80 Kops/sec | 67.280 GB/s data | 143.977 GB/s wire
+(  64, 8):   936,048.20 Kops/sec | 13.944 GB/s data |  29.648 GB/s wire   849,806.90 Kops/sec | 12.665 GB/s data |  32.449 GB/s wire
+( 256, 8): 2,006,068.60 Kops/sec | 29.883 GB/s data |  63.590 GB/s wire 1,808,601.90 Kops/sec | 26.954 GB/s data |  69.053 GB/s wire
+(1024, 8): 2,858,011.50 Kops/sec | 42.588 GB/s data |  90.756 GB/s wire 2,850,508.00 Kops/sec | 42.478 GB/s data | 108.844 GB/s wire
+(4096, 8): 5,576,561.90 Kops/sec | 83.092 GB/s data | 177.642 GB/s wire 4,158,201.80 Kops/sec | 61.962 GB/s data | 158.775 GB/s wire
 
-(  64, 100):   534,015.00 Kops/sec |  53.721 GB/s data |  40.353 GB/s wire
-( 256, 100):   796,215.50 Kops/sec |  80.084 GB/s data |  60.329 GB/s wire
-(1024, 100): 1,267,221.70 Kops/sec | 127.460 GB/s data |  96.614 GB/s wire
-(4096, 100): 1,674,280.10 Kops/sec | 168.402 GB/s data | 130.075 GB/s wire
+(  64, 100):   777,273.90 Kops/sec |  78.172 GB/s data | 58.752 GB/s wire   692,743.60 Kops/sec |  69.688 GB/s data |  87.094 GB/s wire
+( 256, 100):   913,133.00 Kops/sec |  91.853 GB/s data | 69.337 GB/s wire   992,639.80 Kops/sec |  99.839 GB/s data | 124.800 GB/s wire
+(1024, 100): 1,267,221.70 Kops/sec | 127.460 GB/s data | 96.614 GB/s wire 1,198,472.30 Kops/sec | 120.542 GB/s data | 150.682 GB/s wire
+(4096, 100): 1,162,601.40 Kops/sec | 116.938 GB/s data | 95.509 GB/s wire 1,202,047.40 Kops/sec | 120.905 GB/s data | 151.131 GB/s wire
 
 [SET] (singlelog)
-(  64, 8): 169,025.70 Kops/sec |  2.520 GB/s data |  7.250 GB/s wire
-( 256, 8): 295,715.90 Kops/sec |  4.375 GB/s data | 12.674 GB/s wire
-(1024, 8): 360,064.90 Kops/sec |  5.352 GB/s data | 15.427 GB/s wire
-(4096, 8): 809,223.70 Kops/sec | 12.061 GB/s data | 34.661 GB/s wire
+(  64, 8):   363,126.90 Kops/sec |  5.401 GB/s data | 13.101 GB/s wire
+( 256, 8):   508,029.40 Kops/sec |  7.580 GB/s data | 18.385 GB/s wire
+(1024, 8): 1,298,600.50 Kops/sec | 19.353 GB/s data | 47.216 GB/s wire
+(4096, 8):   644,975.80 Kops/sec |  9.610 GB/s data | 23.978 GB/s wire
 
-(  64, 100): 141,488.00 Kops/sec | 14.240 GB/s data | 18.449 GB/s wire
-( 256, 100): 259,525.50 Kops/sec | 26.099 GB/s data | 33.840 GB/s wire
-(1024, 100): 300,867.30 Kops/sec | 30.265 GB/s data | 39.221 GB/s wire
+(  64, 100): 280,190.40 Kops/sec | 28.179 GB/s data | 28.466 GB/s wire
+( 256, 100): 516,025.30 Kops/sec | 51.901 GB/s data | 52.815 GB/s wire
+(1024, 100): 780,204.30 Kops/sec | 78.474 GB/s data | 81.215 GB/s wire
 (4096, 100): 549,646.50 Kops/sec | 55.289 GB/s data | 71.664 GB/s wire
+
+[SET] (singlelog) - 0% replica reads
+(  64, 8): 334,365.70 Kops/sec |  4.979 GB/s data | 14.330 GB/s wire
+( 256, 8): 311,212.10 Kops/sec |  4.682 GB/s data | 13.340 GB/s wire
+(1024, 8): 555,374.10 Kops/sec |  8.270 GB/s data | 23.792 GB/s wire
+(4096, 8): 583,480.70 Kops/sec |  8.699 GB/s data | 24.992 GB/s wire
+
+(  64, 100): 192,800.70 Kops/sec | 19.388 GB/s data | 25.135 GB/s wire
+( 256, 100): 296,966.70 Kops/sec | 29.877 GB/s data | 38.719 GB/s wire
+(1024, 100): 299,419.20 Kops/sec | 30.115 GB/s data | 39.042 GB/s wire
+(4096, 100): 340,710.20 Kops/sec | 34.274 GB/s data | 44.421 GB/s wire
 
 [SET] (mlog)
 (  64, 8):
@@ -218,36 +54,36 @@ Pool: TRUE
 (1024, 100):
 (4096, 100):
 
-[SET] (singlelog) - 50% replica reads
-(  64, 8):  542,113.90 Kops/sec |  8.070 GB/s data | 19.572 GB/s wire
-( 256, 8):  789,381.80 Kops/sec | 11.766 GB/s data | 28.511 GB/s wire
-(1024, 8):  790,232.00 Kops/sec | 11.774 GB/s data | 28.688 GB/s wire
-(4096, 8):  746,297.00 Kops/sec | 11.113 GB/s data | 27.648 GB/s wire
-
-(  64, 100): 262,943.50 Kops/sec | 26.449 GB/s data | 26.823 GB/s wire
-( 256, 100): 402,760.60 Kops/sec | 40.510 GB/s data | 41.441 GB/s wire
-(1024, 100): 474,480.60 Kops/sec | 47.730 GB/s data | 49.750 GB/s wire
-(4096, 100): 499,619.90 Kops/sec | 50.248 GB/s data | 53.279 GB/s wire
-
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Workers    : 37000 total (148 per instance x 250 instances)
+Workers    : 37000 total (148 (4 threads x 37 shards) per instance x 250 instances)
 Pool: FALSE
 [GET]
-(  64, 8): 1,712,182.80 Kops/sec | 25.514 GB/s data |  54.220 GB/s wire
-( 256, 8): 3,356,272.90 Kops/sec | 50.024 GB/s data | 106.281 GB/s wire
-(1024, 8): 5,085,546.40 Kops/sec | 75.783 GB/s data | 161.060 GB/s wire
-(4096, 8): 6,123,359.30 Kops/sec | 91.256 GB/s data | 194.183 GB/s wire
+(  64, 8): 2,018,391.50 Kops/sec |  30.077 GB/s data |  63.909 GB/s wire
+( 256, 8): 4,308,267.00 Kops/sec |  64.200 GB/s data | 136.428 GB/s wire
+(1024, 8): 6,216,495.10 Kops/sec |  92.634 GB/s data | 196.851 GB/s wire
+(4096, 8): 8,673,690.00 Kops/sec | 129.247 GB/s data | 274.812 GB/s wire
 
-(  64, 100): 1,217,293.10 Kops/sec | 122.436 GB/s data |  91.823 GB/s wire
-( 256, 100): 2,036,998.40 Kops/sec | 204.888 GB/s data | 153.753 GB/s wire
-(1024, 100): 2,124,302.90 Kops/sec | 213.670 GB/s data | 160.804 GB/s wire
-(4096, 100): 2,533,564.30 Kops/sec | 254.836 GB/s data | 192.711 GB/s wire
+(  64, 100): 1,326,370.70 Kops/sec | 133.408 GB/s data | 108.197 GB/s wire
+( 256, 100): 1,907,062.70 Kops/sec | 191.819 GB/s data | 154.850 GB/s wire
+(1024, 100): 2,016,449.40 Kops/sec | 202.830 GB/s data | 163.446 GB/s wire
+(4096, 100): 2,041,419.10 Kops/sec | 205.330 GB/s data | 166.572 GB/s wire
 
 [SET] (singlelog)
-(  64, 8):   548,395.40 Kops/sec |  8.178 GB/s data | 23.492 GB/s wire
-( 256, 8):   784,753.80 Kops/sec | 11.697 GB/s data | 33.624 GB/s wire
-(1024, 8): 1,124,796.90 Kops/sec | 16.753 GB/s data | 48.188 GB/s wire
-(4096, 8): 1,796,784.40 Kops/sec | 26.775 GB/s data | 76.979 GB/s wire
+(  64, 8): 1,075,695.80 Kops/sec | 16.023 GB/s data |  38.252 GB/s wire
+( 256, 8): 1,426,677.50 Kops/sec | 21.270 GB/s data |  49.851 GB/s wire
+(1024, 8): 1,797,209.40 Kops/sec | 26.790 GB/s data |  62.483 GB/s wire
+(4096, 8): 4,137,555.60 Kops/sec | 61.662 GB/s data | 145.478 GB/s wire
+
+(  64, 100):   965,052.20 Kops/sec |  97.068 GB/s data |  90.487 GB/s wire
+( 256, 100): 1,229,100.90 Kops/sec | 123.632 GB/s data | 106.647 GB/s wire
+(1024, 100): 1,422,336.20 Kops/sec | 143.061 GB/s data | 123.380 GB/s wire
+(4096, 100): 2,366,457.50 Kops/sec | 238.029 GB/s data | 230.446 GB/s wire
+
+[SET] (singlelog) - 0% replica reads
+(  64, 8):   562,148.50 Kops/sec |  8.380 GB/s data | 24.086 GB/s wire
+( 256, 8):   749,797.80 Kops/sec | 11.184 GB/s data | 32.118 GB/s wire
+(1024, 8): 1,110,913.10 Kops/sec | 16.551 GB/s data | 47.599 GB/s wire
+(4096, 8): 1,813,301.90 Kops/sec | 27.024 GB/s data | 77.679 GB/s wire
 
 (  64, 100):   433,326.20 Kops/sec |  43.585 GB/s data |  56.496 GB/s wire
 ( 256, 100):   780,338.50 Kops/sec |  78.488 GB/s data | 101.735 GB/s wire
@@ -264,95 +100,85 @@ Pool: FALSE
 ( 256, 100):
 (1024, 100):
 (4096, 100):
-
-[SET] (singlelog) - 50% replica reads
-(  64, 8):   916,145.10 Kops/sec | 13.648 GB/s data |  32.129 GB/s wire
-( 256, 8): 1,316,296.70 Kops/sec | 19.615 GB/s data |  45.336 GB/s wire
-(1024, 8): 1,930,330.10 Kops/sec | 28.763 GB/s data |  65.850 GB/s wire
-(4096, 8): 3,476,184.90 Kops/sec | 51.799 GB/s data | 122.135 GB/s wire
-
-(  64, 100):   765,855.50 Kops/sec |  77.034 GB/s data |  68.377 GB/s wire
-( 256, 100): 1,058,995.00 Kops/sec | 106.513 GB/s data |  87.394 GB/s wire
-(1024, 100): 1,587,830.00 Kops/sec | 159.710 GB/s data | 136.556 GB/s wire
-(4096, 100): 2,689,502.90 Kops/sec | 270.528 GB/s data | 256.973 GB/s wire
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 <VALKEY>
-
-Cluster: 37 primaries + 37 replicas
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Cluster: 74 primaries + 74 replicas
 DbSize = ~1,000,000 (27028 x 37)
 Instances  : 250 (1 x 250 hosts)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Workers    : 8000 total (32 per instance x 250 instances)
 Pool: TRUE
 [GET]
-(  64, 8): 73,259.40 Kops/sec |  1.099 GB/s data |  2.800 GB/s wire
-( 256, 8): 88,416.40 Kops/sec |  1.304 GB/s data |  3.379 GB/s wire
-(1024, 8): 78,209.70 Kops/sec |  1.164 GB/s data |  2.996 GB/s wire
-(4096, 8): 81,563.80 Kops/sec |  1.222 GB/s data |  3.103 GB/s wire
+(  64, 8): 203,440.70 Kops/sec |  3.028 GB/s data |  6.460 GB/s wire
+( 256, 8): 281,310.30 Kops/sec |  4.194 GB/s data |  8.978 GB/s wire
+(1024, 8): 256,209.50 Kops/sec |  3.827 GB/s data |  8.336 GB/s wire
+(4096, 8): 205,481.00 Kops/sec |  3.060 GB/s data |  7.088 GB/s wire
 
-(  64, 100): 54,386.00 Kops/sec |  5.472 GB/s data |  6.834 GB/s wire
-( 256, 100): 74,074.80 Kops/sec |  7.455 GB/s data |  9.309 GB/s wire
-(1024, 100): 73,958.60 Kops/sec |  7.440 GB/s data |  9.297 GB/s wire
-(4096, 100): 77,337.50 Kops/sec |  7.778 GB/s data |  9.730 GB/s wire
+(  64, 100): 144,843.30 Kops/sec | 14.574 GB/s data | 11.038 GB/s wire
+( 256, 100): 306,520.70 Kops/sec | 30.832 GB/s data | 23.622 GB/s wire
+(1024, 100): 203,769.40 Kops/sec | 20.507 GB/s data | 16.892 GB/s wire
+(4096, 100): 171,773.40 Kops/sec | 17.277 GB/s data | 17.203 GB/s wire
 
 [SET] (singlelog)
-(  64, 8): 27,418.30 Kops/sec |  0.439 GB/s data |  1.185 GB/s wire
-( 256, 8): 30,120.30 Kops/sec |  0.463 GB/s data |  1.291 GB/s wire
-(1024, 8): 33,125.10 Kops/sec |  0.523 GB/s data |  1.424 GB/s wire
-(4096, 8): 30,714.70 Kops/sec |  0.436 GB/s data |  1.308 GB/s wire
+(  64, 8): 63,764.40 Kops/sec |  0.942 GB/s data |  2.303 GB/s wire
+( 256, 8): 70,135.50 Kops/sec |  1.055 GB/s data |  2.541 GB/s wire
+(1024, 8): 65,745.20 Kops/sec |  0.964 GB/s data |  2.453 GB/s wire
+(4096, 8): 64,040.40 Kops/sec |  0.940 GB/s data |  2.471 GB/s wire
 
-(  64, 100): 20,073.30 Kops/sec |  2.027 GB/s data |  2.608 GB/s wire
-( 256, 100): 23,020.30 Kops/sec |  2.319 GB/s data |  2.998 GB/s wire
-(1024, 100): 27,179.60 Kops/sec |  2.735 GB/s data |  3.543 GB/s wire
-(4096, 100): 29,262.10 Kops/sec |  2.948 GB/s data |  3.816 GB/s wire
+(  64, 100): 75,330.20 Kops/sec |  7.578 GB/s data |  7.774 GB/s wire
+( 256, 100): 73,100.90 Kops/sec |  7.361 GB/s data |  7.597 GB/s wire
+(1024, 100): 57,343.00 Kops/sec |  5.764 GB/s data |  6.307 GB/s wire
+(4096, 100): 43,524.20 Kops/sec |  4.381 GB/s data |  5.207 GB/s wire
 
-[SET] (singlelog) - 50% replica reads
-(  64, 8):
-( 256, 8):
-(1024, 8):
-(4096, 8):
+[SET] (singlelog) - 0% replica reads
+(  64, 8): 43,537.60 Kops/sec |  0.659 GB/s data |  1.869 GB/s wire
+( 256, 8): 48,804.70 Kops/sec |  0.731 GB/s data |  2.094 GB/s wire
+(1024, 8): 47,470.50 Kops/sec |  0.735 GB/s data |  2.043 GB/s wire
+(4096, 8): 57,014.10 Kops/sec |  0.844 GB/s data |  2.449 GB/s wire
 
-(  64, 100):
-( 256, 100):
-(1024, 100):
-(4096, 100):
+(  64, 100): 43,083.80 Kops/sec |  4.331 GB/s data |  5.614 GB/s wire
+( 256, 100): 44,160.80 Kops/sec |  4.437 GB/s data |  5.756 GB/s wire
+(1024, 100): 36,258.50 Kops/sec |  3.668 GB/s data |  4.721 GB/s wire
+(4096, 100): 39,928.20 Kops/sec |  4.018 GB/s data |  5.206 GB/s wire
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Workers    : 37000 total (148 per instance x 250 instances)
+Workers    : 37000 total (148 (2 threads x 74 shards) per instance x 250 instances)
 Pool: FALSE
 [GET]
-(  64, 8):
-( 256, 8):
-(1024, 8):
-(4096, 8):
+(  64, 8):   429,358.80 Kops/sec |  6.403 GB/s data | 13.607 GB/s wire
+( 256, 8):   892,702.00 Kops/sec | 13.299 GB/s data | 28.300 GB/s wire
+(1024, 8): 1,367,059.70 Kops/sec | 20.368 GB/s data | 43.398 GB/s wire
+(4096, 8): 1,661,024.90 Kops/sec | 24.750 GB/s data | 52.894 GB/s wire
 
-(  64, 100):
-( 256, 100):
-(1024, 100):
-(4096, 100):
+(  64, 100):   399,656.10 Kops/sec |  40.199 GB/s data | 30.203 GB/s wire
+( 256, 100):   752,576.50 Kops/sec |  75.700 GB/s data | 56.998 GB/s wire
+(1024, 100): 1,067,487.20 Kops/sec | 107.366 GB/s data | 81.282 GB/s wire
+(4096, 100): 1,209,536.40 Kops/sec | 121.666 GB/s data | 93.262 GB/s wire
 
 [SET] (singlelog)
-(  64, 8):
-( 256, 8):
-(1024, 8):
-(4096, 8):
+(  64, 8): 228,006.90 Kops/sec |  3.403 GB/s data |  8.138 GB/s wire
+( 256, 8): 465,309.70 Kops/sec |  6.949 GB/s data | 16.518 GB/s wire
+(1024, 8): 747,606.80 Kops/sec | 11.138 GB/s data | 26.431 GB/s wire
+(4096, 8): 840,607.00 Kops/sec | 12.523 GB/s data | 30.043 GB/s wire
 
-(  64, 100):
-( 256, 100):
-(1024, 100):
-(4096, 100):
+(  64, 100): 244,863.60 Kops/sec | 24.620 GB/s data | 22.005 GB/s wire
+( 256, 100): 372,141.70 Kops/sec | 37.438 GB/s data | 31.585 GB/s wire
+(1024, 100): 459,808.80 Kops/sec | 46.251 GB/s data | 38.323 GB/s wire
+(4096, 100): 577,008.00 Kops/sec | 58.039 GB/s data | 52.119 GB/s wire
 
-[SET] (singlelog) - 50% replica reads
-(  64, 8):
-( 256, 8):
-(1024, 8):
-(4096, 8):
+[SET] (singlelog) - 0% replica reads
+(  64, 8): 155,568.90 Kops/sec |  2.337 GB/s data |  6.665 GB/s wire
+( 256, 8): 283,259.40 Kops/sec |  4.221 GB/s data | 12.140 GB/s wire
+(1024, 8): 373,957.50 Kops/sec |  5.574 GB/s data | 16.012 GB/s wire
+(4096, 8): 463,441.60 Kops/sec |  6.906 GB/s data | 19.854 GB/s wire
 
-(  64, 100):
-( 256, 100):
-(1024, 100):
-(4096, 100):
+(  64, 100): 138,400.20 Kops/sec | 13.917 GB/s data | 18.050 GB/s wire
+( 256, 100): 196,392.30 Kops/sec | 19.747 GB/s data | 25.597 GB/s wire
+(1024, 100): 224,502.60 Kops/sec | 22.592 GB/s data | 29.275 GB/s wire
+(4096, 100): 225,620.80 Kops/sec | 22.695 GB/s data | 29.427 GB/s wire
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

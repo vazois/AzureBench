@@ -1,11 +1,44 @@
 {
   "repos": [
-    { "name": "garnet",     "url": "https://github.com/microsoft/garnet.git",    "path": "/home/guser/garnet",     "branch": ["vazois/mlog-max", "vazois/cluster-bench"] },
-    { "name": "valkey",     "url": "https://github.com/valkey-io/valkey.git",    "path": "/home/guser/valkey",     "branch": "9.0" },
-    { "name": "dragonfly",  "url": "https://github.com/dragonflydb/dragonfly.git","path": "/home/guser/dragonfly",  "branch": "main" },
-    { "name": "redis",      "url": "https://github.com/redis/redis.git",         "path": "/home/guser/redis",      "branch": "unstable" },
-    { "name": "memtier",    "url": "https://github.com/redis/memtier_benchmark", "path": "/home/guser/memtier",    "branch": "master" },
-    { "name": "AzureBench", "url": "https://github.com/vazois/AzureBench.git",   "path": "/home/guser/AzureBench", "branch": "main" }
+    {
+      "name": "garnet",
+      "url": "https://github.com/microsoft/garnet.git",
+      "path": "/home/guser/garnet",
+      "branch": [
+        "vazois/mlog-max",
+        "vazois/cluster-bench"
+      ]
+    },
+    {
+      "name": "valkey",
+      "url": "https://github.com/valkey-io/valkey.git",
+      "path": "/home/guser/valkey",
+      "branch": "9.0"
+    },
+    {
+      "name": "dragonfly",
+      "url": "https://github.com/dragonflydb/dragonfly.git",
+      "path": "/home/guser/dragonfly",
+      "branch": "main"
+    },
+    {
+      "name": "redis",
+      "url": "https://github.com/redis/redis.git",
+      "path": "/home/guser/redis",
+      "branch": "unstable"
+    },
+    {
+      "name": "memtier",
+      "url": "https://github.com/redis/memtier_benchmark",
+      "path": "/home/guser/memtier",
+      "branch": "master"
+    },
+    {
+      "name": "AzureBench",
+      "url": "https://github.com/vazois/AzureBench.git",
+      "path": "/home/guser/AzureBench",
+      "branch": "main"
+    }
   ],
   "scripts": [
     {
