@@ -31,6 +31,9 @@ param(
     [Alias('ResourceGroup')]
     [string]$rg = 'vazois-garnet',
 
+    [Alias('Location')]
+    [string]$Region = '',
+
     [ValidateSet('deploy', 'stage')]
     [string]$Action = 'deploy',
 
@@ -169,6 +172,18 @@ Write-Host "`n=== Deploying network resources ===" -ForegroundColor Cyan
 Write-Host "  Resource Group : $rg"
 Write-Host "  Template       : network/network.bicep"
 Write-Host "  Parameters     : network/network-parameters.json"
+
+# Region precedence: -Region argument > resource group location.
+if (-not $Region) {
+    $Region = (az group show --name $rg --query location -o tsv)
+    if ($LASTEXITCODE -ne 0 -or -not $Region) {
+        Write-Error "Could not determine region for resource group '$rg'. Pass -Region explicitly."
+        exit 1
+    }
+    Write-Host "  Region         : $Region (from resource group)"
+} else {
+    Write-Host "  Region         : $Region (from -Region)"
+}
 Write-Host ""
 
 az deployment group create `
@@ -176,6 +191,7 @@ az deployment group create `
     --name $DeploymentName `
     --template-file (Join-Path $networkDir 'network.bicep') `
     --parameters (Join-Path $networkDir 'network-parameters.json') `
+    --parameters location=$Region `
     --output none
 
 if ($LASTEXITCODE -ne 0) {
@@ -204,10 +220,8 @@ $vnetName = $outputs.vnetName.value
 $subnetName = $outputs.subnetName.value
 $accSubnetName = $outputs.accSubnetName.value
 $proximityId = $outputs.proximityId.value
-$location = ($outputs.PSObject.Properties | Where-Object { $_.Name -eq 'location' })?.Value
-if (-not $location) {
-    $location = (az group show --name $rg --query location -o tsv)
-}
+# Use the region we actually deployed to (from -Region or the RG-location default).
+$location = $Region
 
 Write-VmssParams -Location $location -NsgId $nsgId -VnetName $vnetName `
     -SubnetName $subnetName -AccSubnetName $accSubnetName -ProximityId $proximityId

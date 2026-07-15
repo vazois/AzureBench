@@ -3,6 +3,7 @@
   'eastus'
   'southcentralus'
   'centralus'
+  'canadaeast'
 ])
 param location string
 

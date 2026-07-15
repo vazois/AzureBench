@@ -56,6 +56,8 @@ Creates NSG, VNet, and a proximity placement group. Auto-generates `vmss-paramet
 | `deploy` (default) | `.\deploy-network-resources.ps1` | Deploys network resources and generates `vmss-parameters.json` |
 | `stage` | `.\deploy-network-resources.ps1 -Action stage -rg <rg>` | Queries existing resources in the resource group and generates `vmss-parameters.json` (no deployment) |
 
+> **`-Region` (optional):** By default the deploy action uses the resource group's own location (`az group show`). Pass `-Region <region>` to deploy the network resources (NSG, VNet, proximity group) into a specific region, e.g. `.\deploy-network-resources.ps1 -rg garnet-bench-eastcan -Region canadaeast`. The chosen region is written to `vmss-parameters.json` so the VMSS inherits it. Note that Azure resource locations are **immutable** — if the NSG/VNet/PPG already exist in a different region, you must delete them first, then redeploy. The region must also be listed in the `@allowed` set in `network/network.bicep`.
+
 The VNet contains three subnets:
 
 | Subnet | Prefix | Purpose |
@@ -130,6 +132,26 @@ az deployment group create `
 ```
 
 VMs are provisioned via cloud-init with .NET SDKs, repos, and tooling pre-installed.
+
+#### Availability zone strategy (`zoneStrategy`)
+
+`vmss.bicep` accepts an optional `zoneStrategy` parameter (default `single`):
+
+| Value | Behavior |
+|-------|----------|
+| `single` (default) | Pins all instances to zone 1 and uses a Proximity Placement Group (PPG) for lowest inter-node latency |
+| `all` | Spreads instances across zones 1, 2, and 3 for higher resilience/capacity (no PPG — a PPG requires a single zone) |
+| `none` | Assigns **no** availability zone while still using a PPG for low latency |
+
+> **When to use `zoneStrategy=none`:** Some regions (e.g. `canadaeast`) do **not** support availability zones. Deploying there with the default `single` fails with `LocationNotSupportAvailabilityZones`. Use `zoneStrategy=none` to deploy without a zone:
+>
+> ```powershell
+> az deployment group create --resource-group garnet-bench-eastcan `
+>   --template-file vmss.bicep --parameters @vmss-parameters.json `
+>   --parameters vmssName=server instanceCount=<n> zoneStrategy=none
+> ```
+>
+> **Disabling the PPG:** If no proximity placement group exists in the region (or you want the platform to spread instances for better allocation success), add `enableProximityPlacement=false`. The PPG is also skipped automatically when `proximityId` is empty. A PPG is a single-region resource, so its region must match the VMSS region.
 
 ### 5. Manage Cluster
 
@@ -311,8 +333,8 @@ No script requires a standalone `-Location` parameter. The region is determined 
 
 | Script | Behavior |
 |--------|----------|
-| `deploy-network-resources.ps1` | Prompts for region only when creating a **new** resource group; otherwise reads it from the existing RG via `az group show` |
+| `deploy-network-resources.ps1` | Prompts for region only when creating a **new** resource group; otherwise reads it from the existing RG via `az group show`. Accepts an optional `-Region <region>` override to target a specific region (see [Deploy Network Resources](#2-deploy-network-resources)) |
 | `deploy-keys.ps1` | Reads location from the resource group — never prompts |
 | `vmss.bicep` | Receives `location` from `vmss-parameters.json` (written by `deploy-network-resources.ps1`) |
 
-In short: set the region when you create the resource group and everything else inherits it automatically.
+In short: set the region when you create the resource group and everything else inherits it automatically. Use `-Region` on `deploy-network-resources.ps1` only when you need the network resources in a region different from the resource group's own location.

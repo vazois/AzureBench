@@ -159,7 +159,15 @@ function Deploy-Vault {
         }
 
         $location = (az group show --name $rg --query location -o tsv)
+
         $deployerOid = (az ad signed-in-user show --query id -o tsv)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($deployerOid)) {
+            Write-Error ("Could not determine the signed-in user's object ID (az ad signed-in-user show returned empty). " +
+                "This usually means your session needs re-authentication (e.g. a Continuous Access Evaluation challenge). " +
+                "Run 'az login' and try again.")
+            exit 1
+        }
+
         az deployment group create `
             --resource-group $rg `
             --template-file $kvBicep `

@@ -3,7 +3,7 @@ param location string
 param nsgId string
 param subnetName string
 param accSubnetName string
-param proximityId string
+param proximityId string = ''
 param vnetName string
 
 param vmssName string
@@ -56,6 +56,7 @@ param osDiskType string
   'Epds_v6: [8, 32, 64, 96]'
   // Intel v6
   'Ds_v6: [8, 32, 48, 64, 96]'
+  'Dlds_v6: [8, 32, 48, 64, 96]'
   'Es_v6: [8, 32, 48, 64, 96]'
   // Intel v5
   'Ds_v5: [8, 32, 48, 64, 96]'
@@ -74,12 +75,16 @@ param vmFamily string
 })
 param vmCores int
 
-@description('Availability zone strategy: "single" pins all instances to zone 1 and uses a Proximity Placement Group for lowest inter-node latency; "all" spreads instances across zones 1, 2 and 3 for higher resilience/capacity (no PPG, since a PPG requires a single zone).')
+@description('Availability zone strategy: "single" pins all instances to zone 1 and uses a Proximity Placement Group for lowest inter-node latency; "all" spreads instances across zones 1, 2 and 3 for higher resilience/capacity (no PPG, since a PPG requires a single zone); "none" assigns no availability zone (required for regions without AZ support, e.g. canadaeast) while still using a Proximity Placement Group for low latency.')
 @allowed([
   'single'
   'all'
+  'none'
 ])
 param zoneStrategy string = 'single'
+
+@description('Enable Proximity Placement Group for lowest inter-node latency. Set to false to deploy without a PPG (e.g. when no PPG exists in the region, or to allow the platform to spread instances for better allocation success). Ignored when zoneStrategy is "all" (which never uses a PPG).')
+param enableProximityPlacement bool = true
 
 // Extract the actual family name by splitting on ':'
 // e.g. 'Dps_v6: [32, 48, 64, 96]' → 'Dps_v6'
@@ -94,8 +99,8 @@ var suffixAndVersion = substring(familyName, 1, max(0, length(familyName) - 1))
 var vmSKU = familyName == 'DSv2' ? 'Standard_DS5_v2' : 'Standard_${seriesLetter}${vmCores}${suffixAndVersion}'
 
 // ARM-based SKUs do not support Trusted Launch.
-// x64 families: E_v3, Fs_v2, Fas_v6, Ds_v6, Es_v6, DSv2
-var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Es_v6', 'DSv2', 'Bs_v2', 'Bas_v2', 'Las_v3', 'Ls_v3', 'Las_v4', 'Ls_v4']
+// x64 families: E_v3, Fs_v2, Fas_v6, Ds_v6, Dlds_v6, Es_v6, DSv2
+var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Dlds_v6', 'Es_v6', 'DSv2', 'Bs_v2', 'Bas_v2', 'Las_v3', 'Ls_v3', 'Las_v4', 'Ls_v4']
 var supportsTrustedLaunch = contains(x64Families, familyName)
 var securityProfileConfig = supportsTrustedLaunch
   ? {
@@ -258,8 +263,8 @@ var installSoftwareScriptBase64 = base64(loadTextContent('install-software.ps1')
 ////////////////////// NETWORK CONFIG OPTIONS //////////////////////////
 var publicIPAddressName = '${vmssName}-PublicIP'
 var dnsLabelPrefix = vmssName
-var zones = zoneStrategy == 'all' ? ['1', '2', '3'] : ['1']
-var useProximityGroup = zoneStrategy == 'single'
+var zones = zoneStrategy == 'all' ? ['1', '2', '3'] : zoneStrategy == 'none' ? [] : ['1']
+var useProximityGroup = zoneStrategy != 'all' && enableProximityPlacement && !empty(proximityId)
 var nicName = '${vmssName}-nic'
 var accNicName = '${vmssName}-acc-nic'
 var dataSubnetName = accSubnetName
@@ -341,7 +346,7 @@ var networkProfileConfig = {
 resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (operatingSystem == 'linux') {
   name: vmssName
   location: location
-  zones: zones
+  zones: empty(zones) ? null : zones
   tags: tagsProfile
   sku: {
     capacity: instanceCount
@@ -428,7 +433,7 @@ resource linuxVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (
 resource windowsVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = if (operatingSystem == 'windows') {
   name: vmssName
   location: location
-  zones: zones
+  zones: empty(zones) ? null : zones
   tags: tagsProfile
   sku: {
     capacity: instanceCount
