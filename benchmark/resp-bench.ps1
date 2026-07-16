@@ -26,13 +26,17 @@ param(
 )
 
 if ($Help) {
-    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>] [-Verbose]"
+    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>] [-Detail] [-Background] [-Verbose]"
     Write-Host ""
     Write-Host "Reads parameters from a key=value config file and runs"
     Write-Host "Resp.benchmark on remote VMs via SSH."
     Write-Host ""
     Write-Host "Without -Verbose: runs inline in parallel, aggregates results."
     Write-Host "With -Verbose: spawns Windows Terminal panes for visual inspection."
+    Write-Host ""
+    Write-Host "  -Detail   Print per-instance throughput and completion duration,"
+    Write-Host "            plus a list of the slowest instances. A fastest/avg/slowest"
+    Write-Host "            duration summary is always shown in inline mode."
     Write-Host ""
     Write-Host "Config file keys:"
     Write-Host "  SshKey           - Path to SSH private key"
@@ -382,6 +386,7 @@ if ($Background) {
             Output  = $outputText
             LogFile = $logFile
             Duration = $duration
+            DurationSec = $sw.Elapsed.TotalSeconds
         }
     } -ThrottleLimit $totalCount -AsJob
 
@@ -394,6 +399,31 @@ if ($Background) {
     $benchSuccess = ($benchResults | Where-Object { $_.Success }).Count
     $benchFailed = $benchResults.Count - $benchSuccess
     Write-Host "  ✓ Benchmark complete: $benchSuccess/$totalCount succeeded | Elapsed: $($stopwatch.Elapsed.ToString('mm\:ss\.ff'))" -ForegroundColor $(if ($benchFailed -gt 0) { 'Yellow' } else { 'Green' })
+
+    # Per-instance completion durations. The timed benchmark window is fixed
+    # (--runtime), so any spread here comes from untimed phases: SSH setup,
+    # offline buffer preparation (scales with batch size) and the DB load phase
+    # (more round-trips at small batch). The whole run is a barrier: total
+    # elapsed is set by the slowest instance.
+    $durByLog = @{}
+    foreach ($r in $benchResults) { $durByLog[$r.LogFile] = $r.Duration }
+
+    $secs = @($benchResults | Where-Object { $null -ne $_.DurationSec } | ForEach-Object { $_.DurationSec })
+    if ($secs.Count -gt 0) {
+        $fastest = ($secs | Measure-Object -Minimum).Minimum
+        $slowest = ($secs | Measure-Object -Maximum).Maximum
+        $avg = ($secs | Measure-Object -Average).Average
+        $fmt = { param($s) ([TimeSpan]::FromSeconds($s)).ToString('mm\:ss\.ff') }
+        Write-Host ("  Instance durations: fastest {0} | avg {1} | slowest {2} | spread {3}" -f `
+            (& $fmt $fastest), (& $fmt $avg), (& $fmt $slowest), (& $fmt ($slowest - $fastest))) -ForegroundColor DarkCyan
+
+        if ($Detail) {
+            Write-Host "  Slowest instances:" -ForegroundColor DarkCyan
+            $benchResults | Sort-Object DurationSec -Descending | Select-Object -First 5 | ForEach-Object {
+                Write-Host ("    {0}  {1}" -f $_.Duration, $_.Host) -ForegroundColor DarkGray
+            }
+        }
+    }
 
     if ($benchFailed -gt 0) {
         Write-Host "  Failed hosts:" -ForegroundColor Red
@@ -411,6 +441,7 @@ Write-Host "=== Aggregate Results ($runTimestamp) ===" -ForegroundColor Cyan
 $totalKops = 0.0
 $totalData = 0.0
 $totalWire = 0.0
+if (-not (Get-Variable -Name durByLog -Scope Local -ErrorAction SilentlyContinue)) { $durByLog = @{} }
 
 $maxHostLen = ($logFiles | ForEach-Object { (Split-Path $_ -Leaf).Replace('.log','').Length } | Measure-Object -Maximum).Maximum
 
@@ -431,7 +462,8 @@ foreach ($lf in $logFiles) {
         $totalData += $data
         $totalWire += $wire
         if ($Detail) {
-            Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire" -f $name.PadRight($maxHostLen), $kops, $data, $wire)
+            $durSuffix = if ($durByLog -and $durByLog.ContainsKey($lf)) { " | $($durByLog[$lf])" } else { "" }
+            Write-Host ("  {0}  {1,12:N2} Kops/sec | {2,6:N3} GB/s data | {3,6:N3} GB/s wire{4}" -f $name.PadRight($maxHostLen), $kops, $data, $wire, $durSuffix)
         }
     } else {
         if ($Detail) {
