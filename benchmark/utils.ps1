@@ -14,17 +14,79 @@ function Wait-ParallelJob {
         A running Stopwatch for elapsed time display.
     .PARAMETER Label
         Text label shown before the progress bar (e.g., "Loading", "Running").
+    .PARAMETER HostStatus
+        Optional synchronized hashtable keyed by instance index whose values are
+        'pending', 'done', or 'failed'. Required for the -Detail live view.
+    .PARAMETER HostNames
+        Optional array of display names indexed by instance index, used to list
+        the instances still pending in the -Detail live view.
+    .PARAMETER Detail
+        When set (with HostStatus/HostNames), renders a live multi-line view
+        showing per-instance completed/pending status instead of a single bar.
+    .PARAMETER DetailMaxHosts
+        Maximum number of pending instance names to list in the -Detail view.
     #>
     param(
         [Parameter(Mandatory)]$Job,
         [Parameter(Mandatory)][hashtable]$Progress,
         [Parameter(Mandatory)][int]$Total,
         [Parameter(Mandatory)][System.Diagnostics.Stopwatch]$Stopwatch,
-        [string]$Label = "Running"
+        [string]$Label = "Running",
+        [hashtable]$HostStatus,
+        [string[]]$HostNames,
+        [switch]$Detail,
+        [int]$DetailMaxHosts = 15
     )
     $barWidth = 30
     $fillChar = ([char]0x2588).ToString()
     $emptyChar = ([char]0x2591).ToString()
+    $esc = [char]27
+
+    $useDetail = $Detail -and $HostStatus -and $HostNames -and $HostNames.Count -gt 0
+
+    if ($useDetail) {
+        $renderDetail = {
+            param([int]$Done, [bool]$IsFinal)
+            $filled = if ($IsFinal) { $barWidth } else { [math]::Floor(($Done / $Total) * $barWidth) }
+            $empty = $barWidth - $filled
+            $bar = $fillChar * $filled + $emptyChar * $empty
+            $elapsed = $Stopwatch.Elapsed.ToString('mm\:ss')
+
+            $completed = 0; $failed = 0; $pendingNames = @()
+            for ($k = 0; $k -lt $HostNames.Count; $k++) {
+                switch ($HostStatus[$k]) {
+                    'done'   { $completed++ }
+                    'failed' { $failed++ }
+                    default  { $pendingNames += $HostNames[$k] }
+                }
+            }
+            $lines = @()
+            $lines += "  $Label... [$bar] $Done/$Total ($elapsed)"
+            $failSuffix = if ($failed -gt 0) { " | failed: $failed" } else { "" }
+            $lines += "    completed: $completed | pending: $($pendingNames.Count)$failSuffix"
+            if ($pendingNames.Count -gt 0) {
+                $shown = @($pendingNames | Select-Object -First $DetailMaxHosts)
+                $listStr = ($shown -join ', ')
+                $more = $pendingNames.Count - $shown.Count
+                if ($more -gt 0) { $listStr += " (+$more more)" }
+                $lines += "    pending: $listStr"
+            }
+            return ,$lines
+        }
+
+        $prevLines = 0
+        while ($Job.State -eq 'Running') {
+            $lines = & $renderDetail $Progress.done $false
+            if ($prevLines -gt 0) { [Console]::Out.Write("$esc[${prevLines}A$esc[0J") }
+            foreach ($l in $lines) { [Console]::Out.WriteLine($l) }
+            $prevLines = $lines.Count
+            Start-Sleep -Milliseconds 300
+        }
+        $lines = & $renderDetail $Total $true
+        if ($prevLines -gt 0) { [Console]::Out.Write("$esc[${prevLines}A$esc[0J") }
+        foreach ($l in $lines) { [Console]::Out.WriteLine($l) }
+        return
+    }
 
     while ($Job.State -eq 'Running') {
         $done = $Progress.done

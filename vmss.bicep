@@ -31,41 +31,45 @@ param osDiskType string
 /// SKU Options ////
 @description('VM family with supported core counts. Pick a family, then choose vmCores from the listed options.')
 @allowed([
-  // x64 SKUs
-  'E_v3: [8, 20, 64]'
-  'Fs_v2: [8, 32, 64, 72]'
+  // ===== Intel =====
   'DSv2: [8, 16]'
-  // AMD
+  'Fs_v2: [8, 32, 64, 72]'
+  'Bs_v2: [2, 4, 8, 16, 32]'
+  'E_v3: [8, 20, 64]'
+  'E_v4: [8, 32, 48, 64]'
+  'E_v5: [8, 32, 48, 64, 96]'
+  'Es_v3: [8, 32, 48, 64]'
+  'Es_v4: [8, 32, 48, 64]'
+  'Es_v5: [8, 32, 48, 64, 96]'
+  'Es_v6: [8, 32, 48, 64, 96]'
+  'Ds_v3: [8, 32, 48, 64]'
+  'Ds_v4: [8, 32, 48, 64]'
+  'Ds_v5: [8, 32, 48, 64, 96]'
+  'Ds_v6: [8, 32, 48, 64, 96]'
+  'Dds_v6: [8, 32, 48, 64, 96]'
+  'Dds_v7: [8, 32, 48, 64, 96]'
+  'Dlds_v6: [8, 32, 48, 64, 96]'
+  'Dlds_v7: [8, 32, 48, 64, 96]'
+  'Ls_v3: [8, 16, 32, 48, 64, 80]'
+  'Ls_v4: [2, 4, 8, 16, 32, 48, 64, 80, 96]'
+  // ===== AMD =====
+  'Bas_v2: [2, 4, 8, 16, 32]'
   'Fas_v6: [8, 32,64]'
   'Fas_v7: [8, 32,64,80]'
   'Eas_v7: [8, 32,64,80]'
-  // Burstable v2 (Intel Bsv2 / AMD Basv2)
-  'Bs_v2: [2, 4, 8, 16, 32]'
-  'Bas_v2: [2, 4, 8, 16, 32]'
-  // ARM v5: Ampere Altra
-  'Dpls_v5: [8, 32, 64]'
-  'Dps_v5: [8, 32, 64]'
-  'Dpds_v5: [8, 32, 64]'
-  'Eps_v5: [8, 20, 32]'
-  'Epds_v5: [8, 32]'
-  // ARM v6: Ampere
-  'Dpls_v6: [8, 32, 48, 64, 96]'
-  'Dps_v6: [8, 32, 48, 64, 96]'
-  'Dpds_v6: [8, 32, 64, 96]'
-  'Eps_v6: [8, 32, 48, 64, 96]'
-  'Epds_v6: [8, 32, 64, 96]'
-  // Intel v6
-  'Ds_v6: [8, 32, 48, 64, 96]'
-  'Dlds_v6: [8, 32, 48, 64, 96]'
-  'Es_v6: [8, 32, 48, 64, 96]'
-  // Intel v5
-  'Ds_v5: [8, 32, 48, 64, 96]'
-  'Es_v5: [8, 32, 48, 64, 96]'
-  // Storage-optimized L-series (AMD Las / Intel Ls)
   'Las_v3: [8, 16, 32, 48, 64, 80]'
-  'Ls_v3: [8, 16, 32, 48, 64, 80]'
   'Las_v4: [2, 4, 8, 16, 32, 48, 64, 80, 96]'
-  'Ls_v4: [2, 4, 8, 16, 32, 48, 64, 80, 96]'
+  // ===== ARM (Ampere) =====
+  'Dpls_v5: [8, 32, 64]'
+  'Dpls_v6: [8, 32, 48, 64, 96]'
+  'Dps_v5: [8, 32, 64]'
+  'Dps_v6: [8, 32, 48, 64, 96]'
+  'Dpds_v5: [8, 32, 64]'
+  'Dpds_v6: [8, 32, 64, 96]'
+  'Eps_v5: [8, 20, 32]'
+  'Eps_v6: [8, 32, 48, 64, 96]'
+  'Epds_v5: [8, 32]'
+  'Epds_v6: [8, 32, 64, 96]'
 ])
 param vmFamily string
 
@@ -100,8 +104,14 @@ var vmSKU = familyName == 'DSv2' ? 'Standard_DS5_v2' : 'Standard_${seriesLetter}
 
 // ARM-based SKUs do not support Trusted Launch.
 // x64 families: E_v3, Fs_v2, Fas_v6, Ds_v6, Dlds_v6, Es_v6, DSv2
-var x64Families = ['E_v3', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Dlds_v6', 'Es_v6', 'DSv2', 'Bs_v2', 'Bas_v2', 'Las_v3', 'Ls_v3', 'Las_v4', 'Ls_v4']
+var x64Families = ['E_v3', 'E_v4', 'E_v5', 'Fs_v2', 'Fas_v6', 'Ds_v6', 'Dds_v6', 'Dlds_v6', 'Es_v6', 'Dds_v7', 'Dlds_v7', 'DSv2', 'Bs_v2', 'Bas_v2', 'Las_v3', 'Ls_v3', 'Las_v4', 'Ls_v4']
 var supportsTrustedLaunch = contains(x64Families, familyName)
+
+// Non-'s' E-series (E_v3/E_v4/E_v5) do not support Premium storage; fall back
+// the OS disk to Standard_LRS when a Premium type was requested for them.
+var nonPremiumStorageFamilies = ['E_v3', 'E_v4', 'E_v5']
+var effectiveOsDiskType = (contains(nonPremiumStorageFamilies, familyName) && startsWith(osDiskType, 'Premium')) ? 'Standard_LRS' : osDiskType
+
 var securityProfileConfig = supportsTrustedLaunch
   ? {
       securityType: 'TrustedLaunch'
@@ -208,14 +218,14 @@ var storageProfileConfig = {
         createOption: 'FromImage'
         caching: diskCaching
         managedDisk: {
-          storageAccountType: osDiskType
+          storageAccountType: effectiveOsDiskType
         }
         diskSizeGB: 128
       }
     : {
         createOption: 'FromImage'
         managedDisk: {
-          storageAccountType: osDiskType
+          storageAccountType: effectiveOsDiskType
         }
         diskSizeGB: 128
       }

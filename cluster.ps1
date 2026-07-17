@@ -24,6 +24,7 @@ param(
     [string]$Template,
     [Alias('Config')][string]$Conf,
     [int]$ICount = 1,
+    [int]$NodeCount = 0,
     [int]$Replicas = 0,
     [switch]$Clean,
     [switch]$NoCluster,
@@ -49,6 +50,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -Template    Config template name (required for start unless -Conf given)"
     Write-Host "  -Conf        Local config file path on THIS workstation; its content is shipped to the nodes (no git push needed)"
     Write-Host "  -ICount      Number of instances per VM (default: 1)"
+    Write-Host "  -NodeCount   Use first N server VMs from discovery (default: 0 = all)"
     Write-Host "  -Replicas    Number of replicas per primary (default: 0)"
     Write-Host "  -Clean       Remove cluster directory before starting"
     Write-Host "  -NoCluster   Disable cluster mode (skip setup step)"
@@ -155,6 +157,7 @@ Write-Host "  System:    $System"
 if ($Conf)      { Write-Host "  Conf:      $Conf ($($confBytes.Length) bytes, shipped as $confName)" }
 if ($Template)  { Write-Host "  Template:  $Template" }
 Write-Host "  ICount:    $ICount"
+if ($NodeCount -gt 0) { Write-Host "  NodeCount: $NodeCount" }
 if ($Replicas -gt 0) { Write-Host "  Replicas:  $Replicas" }
 if ($Clean)     { Write-Host "  Clean:     True" }
 if ($NoCluster) { Write-Host "  NoCluster: True" }
@@ -165,6 +168,7 @@ switch ($Action) {
     "start" {
         # Step 1: Start instances
         $startCmd = "cluster-deploy.ps1 -Action start -System $System -ICount $ICount"
+        if ($NodeCount -gt 0) { $startCmd += " -NodeCount $NodeCount" }
         if ($Template) { $startCmd += " -Template $Template" }
         if ($Conf) { $startCmd += " -ConfContent $confContent -ConfName $confName" }
         if ($Clean) { $startCmd += " -Clean" }
@@ -174,6 +178,7 @@ switch ($Action) {
         # Step 2: Form cluster (skip if NoCluster)
         if (-not $NoCluster) {
             $setupCmd = "cluster-deploy.ps1 -Action setup -System $System -ICount $ICount"
+            if ($NodeCount -gt 0) { $setupCmd += " -NodeCount $NodeCount" }
             if ($Replicas -gt 0) { $setupCmd += " -Replicas $Replicas" }
             Invoke-Remote -Cmd $setupCmd -Label "setup"
         }
@@ -181,6 +186,7 @@ switch ($Action) {
 
     "stop" {
         $stopCmd = "cluster-deploy.ps1 -Action stop -System $System -ICount $ICount"
+        if ($NodeCount -gt 0) { $stopCmd += " -NodeCount $NodeCount" }
         Invoke-Remote -Cmd $stopCmd -Label "stop"
     }
 }

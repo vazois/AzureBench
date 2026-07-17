@@ -22,11 +22,12 @@ param(
     [string]$ConfigFile = "$PSScriptRoot\bench.conf",
     [switch]$Background,
     [switch]$Detail,
+    [switch]$Monitor,
     [switch]$Help
 )
 
 if ($Help) {
-    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>] [-Detail] [-Background] [-Verbose]"
+    Write-Host "Usage: resp-bench.ps1 [-ConfigFile <path>] [-Detail] [-Monitor] [-Background] [-Verbose]"
     Write-Host ""
     Write-Host "Reads parameters from a key=value config file and runs"
     Write-Host "Resp.benchmark on remote VMs via SSH."
@@ -34,9 +35,15 @@ if ($Help) {
     Write-Host "Without -Verbose: runs inline in parallel, aggregates results."
     Write-Host "With -Verbose: spawns Windows Terminal panes for visual inspection."
     Write-Host ""
-    Write-Host "  -Detail   Print per-instance throughput and completion duration,"
-    Write-Host "            plus a list of the slowest instances. A fastest/avg/slowest"
+    Write-Host "  -Detail   During the run, show a live completed/pending status view"
+    Write-Host "            listing which instances are still running. After the run,"
+    Write-Host "            print per-instance throughput and completion duration, plus"
+    Write-Host "            a list of the slowest instances. A fastest/avg/slowest"
     Write-Host "            duration summary is always shown in inline mode."
+    Write-Host ""
+    Write-Host "  -Monitor  Show only the live completed/pending status view while the"
+    Write-Host "            benchmark runs (a subset of -Detail). Does not print the"
+    Write-Host "            full per-instance result breakdown after the run."
     Write-Host ""
     Write-Host "Config file keys:"
     Write-Host "  SshKey           - Path to SSH private key"
@@ -355,9 +362,24 @@ if ($Background) {
     $totalCount = $sshHosts.Count
     $benchProgress = [hashtable]::Synchronized(@{ done = 0; failed = 0 })
 
-    $benchJob = $sshHosts | ForEach-Object -Parallel {
-        $host_ = $_
-        $idx = ($using:sshHosts).IndexOf($host_)
+    # Per-instance status for the -Detail live view. Keyed by instance index so
+    # multiple instances on the same host (Multiplier > 1) stay distinct.
+    $hostStatus = [hashtable]::Synchronized(@{})
+    $hostNames = @()
+    for ($i = 0; $i -lt $totalCount; $i++) {
+        $hostStatus[$i] = 'pending'
+        $parts = $sshHosts[$i] -split '\.'
+        $vm = $parts[0]
+        # Use "<pool>:<vm>" where <pool> is the 2nd hostname label with 'client'
+        # stripped (e.g. vm0.fs4v2client100... -> fs4v2100:vm0), so pools stay
+        # distinguishable in the live monitor. Fall back to the vm label alone.
+        $label = if ($parts.Count -ge 2 -and $parts[1]) { "$($parts[1] -replace 'client', ''):$vm" } else { $vm }
+        $hostNames += if ($multiplier -gt 1) { "$label#$i" } else { $label }
+    }
+
+    $benchJob = 0..($totalCount - 1) | ForEach-Object -Parallel {
+        $idx = $_
+        $host_ = ($using:sshHosts)[$idx]
         $logFile = "$using:runDir\$($host_ -replace '\.', '-')-$idx.log"
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $success = $false
@@ -379,8 +401,10 @@ if ($Background) {
         $p = $using:benchProgress
         $p.done++
         if (-not $success) { $p.failed++ }
+        ($using:hostStatus)[$idx] = if ($success) { 'done' } else { 'failed' }
 
         [PSCustomObject]@{
+            Index   = $idx
             Host    = $host_
             Success = $success
             Output  = $outputText
@@ -390,7 +414,7 @@ if ($Background) {
         }
     } -ThrottleLimit $totalCount -AsJob
 
-    Wait-ParallelJob -Job $benchJob -Progress $benchProgress -Total $totalCount -Stopwatch $stopwatch -Label "Running"
+    Wait-ParallelJob -Job $benchJob -Progress $benchProgress -Total $totalCount -Stopwatch $stopwatch -Label "Running" -HostStatus $hostStatus -HostNames $hostNames -Detail:($Detail -or $Monitor)
 
     $benchResults = $benchJob | Receive-Job -Wait
     Remove-Job $benchJob

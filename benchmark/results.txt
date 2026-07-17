@@ -34,10 +34,10 @@ Pool: TRUE
 (4096, 100): 549,646.50 Kops/sec | 55.289 GB/s data | 71.664 GB/s wire
 
 [SET] (singlelog) - 0% replica reads
-(  64, 8): 334,365.70 Kops/sec |  4.979 GB/s data | 14.330 GB/s wire   205,263.40 Kops/sec |  3.053 GB/s data |  8.803 GB/s wire
-( 256, 8): 311,212.10 Kops/sec |  4.682 GB/s data | 13.340 GB/s wire   373,357.70 Kops/sec |  5.562 GB/s data | 15.988 GB/s wire
-(1024, 8): 555,374.10 Kops/sec |  8.270 GB/s data | 23.792 GB/s wire   642,475.00 Kops/sec |  9.572 GB/s data | 27.525 GB/s wire
-(4096, 8): 583,480.70 Kops/sec |  8.699 GB/s data | 24.992 GB/s wire 1,010,846.10 Kops/sec | 15.061 GB/s data | 43.298 GB/s wire
+(  64, 8): 334,365.70 Kops/sec |  4.979 GB/s data | 14.330 GB/s wire
+( 256, 8): 311,212.10 Kops/sec |  4.682 GB/s data | 13.340 GB/s wire
+(1024, 8): 555,374.10 Kops/sec |  8.270 GB/s data | 23.792 GB/s wire
+(4096, 8): 583,480.70 Kops/sec |  8.699 GB/s data | 24.992 GB/s wire
 
 (  64, 100): 192,800.70 Kops/sec | 19.388 GB/s data | 25.135 GB/s wire
 ( 256, 100): 296,966.70 Kops/sec | 29.877 GB/s data | 38.719 GB/s wire
@@ -45,10 +45,10 @@ Pool: TRUE
 (4096, 100): 340,710.20 Kops/sec | 34.274 GB/s data | 44.421 GB/s wire
 
 [SET] (mlogx8)
-(  64, 8): 174,023.70 Kops/sec |  2.597 GB/s data |  7.466 GB/s wire
-( 256, 8): 295,279.60 Kops/sec |  4.428 GB/s data | 12.645 GB/s wire
-(1024, 8): 599,972.30 Kops/sec |  8.943 GB/s data | 25.703 GB/s wire
-(4096, 8): 687,137.50 Kops/sec | 10.247 GB/s data | 29.428 GB/s wire
+(  64, 8):   205,263.40 Kops/sec |  3.053 GB/s data |  8.803 GB/s wire
+( 256, 8):   373,357.70 Kops/sec |  5.562 GB/s data | 15.988 GB/s wire
+(1024, 8):   642,475.00 Kops/sec |  9.572 GB/s data | 27.525 GB/s wire
+(4096, 8): 1,010,846.10 Kops/sec | 15.061 GB/s data | 43.298 GB/s wire
 
 (  64, 100): 146,587.60 Kops/sec | 14.742 GB/s data | 19.107 GB/s wire
 ( 256, 100): 300,698.30 Kops/sec | 30.248 GB/s data | 39.207 GB/s wire
@@ -92,7 +92,7 @@ Pool: FALSE
 (1024, 100):   971,853.00 Kops/sec |  97.756 GB/s data | 126.710 GB/s wire
 (4096, 100): 1,363,145.50 Kops/sec | 137.106 GB/s data | 177.730 GB/s wire
 
-[SET] (mlogx8)
+[SET] (mlogx8) - 0% replica reads
 (  64, 8):   711,619.10 Kops/sec | 10.614 GB/s data |  30.478 GB/s wire
 ( 256, 8):   981,613.60 Kops/sec | 14.626 GB/s data |  42.054 GB/s wire
 (1024, 8): 1,372,895.50 Kops/sec | 20.459 GB/s data |  58.824 GB/s wire
