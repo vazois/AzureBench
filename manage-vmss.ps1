@@ -26,6 +26,7 @@
     - start: power on all instances in the VMSS (az vmss start, fire-and-forget)
     - stop: deallocate all instances in the VMSS, stopping compute billing (az vmss deallocate, fire-and-forget)
     - restart: restart only failed/unhealthy instances in the VMSS (az vmss restart, fire-and-forget)
+    - discover: force cluster peer rescan on each instance (runs cluster-deploy.ps1 -Action discover)
 
 .PARAMETER System
     System to rebuild (required when Action=rebuild).
@@ -62,11 +63,13 @@ param(
 
     [string]$VmssName,
 
-    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping', 'start', 'stop', 'restart', 'list')]
+    [ValidateSet('refresh', 'rebuild', 'deploy', 'install', 'ping', 'start', 'stop', 'restart', 'list', 'discover')]
     [string]$Action = 'refresh',
 
     [ValidateSet('garnet', 'valkey', 'resp-bench', 'memtier')]
     [string]$System,
+
+    [int]$MaxScan = 0,
 
     [string]$SshUser = 'guser',
 
@@ -96,8 +99,10 @@ if ($Help -or -not $rg) {
     Write-Host "                      stop           - deallocate all VMSS instances (fire-and-forget)"
     Write-Host "                      restart        - restart only failed instances (fire-and-forget)"
     Write-Host "                      list           - list instance status for selected VMSS"
+    Write-Host "                      discover       - force cluster peer rescan (runs cluster-deploy.ps1 -Action discover)"
     Write-Host "  -System <name>      System to rebuild: garnet, valkey, resp-bench, memtier"
     Write-Host "                      Required when -Action rebuild"
+    Write-Host "  -MaxScan <n>        Cap subnet-scan probes for -Action discover (0 = unlimited)"
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
     Write-Host "  -Verbose            Show per-instance command output"
     Write-Host "  -Force              Force pull (git reset --hard) instead of fast-forward"
@@ -738,6 +743,11 @@ function Get-SshCommand {
         'install' {
             $forceFlag = if ($Force) { " -Force" } else { "" }
             return "pwsh /home/$SshUser/AzureBench/node/update.ps1 -Pull -Copy$forceFlag"
+        }
+
+        'discover' {
+            $maxScanFlag = if ($MaxScan -gt 0) { " -MaxScan $MaxScan" } else { "" }
+            return "pwsh /home/$SshUser/AzureBench/node/cluster/cluster-deploy.ps1 -Action discover$maxScanFlag"
         }
     }
 }

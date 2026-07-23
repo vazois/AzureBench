@@ -89,7 +89,7 @@ Get-Content $ConfigFile | ForEach-Object {
 
 # --- Resolve parameters ---
 # --- Resolve SSH keys from security/manifest.json ---
-$manifestPath = Join-Path (Split-Path $ConfigFile) "..\security\manifest.json"
+$manifestPath = Join-Path $PSScriptRoot "..\security\manifest.json"
 if (Test-Path $manifestPath) {
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
     $manifestBasePath = [Environment]::ExpandEnvironmentVariables($manifest.basePath)
