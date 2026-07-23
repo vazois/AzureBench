@@ -561,16 +561,16 @@ function New-ClusterManual {
     Write-Host "  Primaries: $($masters -join ', ')" -ForegroundColor DarkGray
     if ($replicas.Count -gt 0) { Write-Host "  Replicas:  $($replicas -join ', ')" -ForegroundColor DarkGray }
 
-    # 1) Gossip: MEET every other node from the first node
-    $first = $Endpoints[0] -split ':'
-    Write-Host "  Sending CLUSTER MEET from $($Endpoints[0]) to $($totalNodes - 1) peer(s)..." -ForegroundColor Yellow
-    for ($i = 1; $i -lt $totalNodes; $i++) {
-        $n = $Endpoints[$i] -split ':'
-        bash -c "$Cli -h $($first[0]) -p $($first[1]) CLUSTER MEET $($n[0]) $($n[1])" 2>&1 | Out-Null
-    }
-    Start-Sleep -Seconds 2
+    # Follow the redis-cli --cluster create sequence exactly, operating on nodes
+    # while they are still ISOLATED (before MEET):
+    #   1) ADDSLOTS on primaries        ("Nodes configuration updated")
+    #   2) SET-CONFIG-EPOCH on each node ("Assign a different config epoch to each node")
+    #   3) MEET to join                  ("Sending CLUSTER MEET messages to join the cluster")
+    #   4) REPLICATE on replicas
+    # Step 2 is critical: SET-CONFIG-EPOCH only works while currentEpoch is 0, and
+    # distinct epochs are required for the cluster to converge and accept replicas.
 
-    # 2) Assign slots across primaries (contiguous ranges)
+    # 1) Assign slots across primaries (contiguous ranges) while isolated
     Write-Host "  Assigning 16384 slots across $($masters.Count) primary(ies)..." -ForegroundColor Yellow
     for ($i = 0; $i -lt $masters.Count; $i++) {
         $m = $masters[$i] -split ':'
@@ -579,7 +579,28 @@ function New-ClusterManual {
         bash -c "$Cli -h $($m[0]) -p $($m[1]) CLUSTER ADDSLOTSRANGE $slotStart $slotEnd" 2>&1 | Out-Null
     }
 
-    # 3) Attach replicas to primaries (round-robin)
+    # 2) Assign a distinct config epoch to each node (1-based) while isolated
+    Write-Host "  Assigning distinct config epochs to $totalNodes node(s)..." -ForegroundColor Yellow
+    for ($i = 0; $i -lt $totalNodes; $i++) {
+        $n = $Endpoints[$i] -split ':'
+        $epoch = $i + 1
+        $res = bash -c "$Cli -h $($n[0]) -p $($n[1]) CLUSTER SET-CONFIG-EPOCH $epoch" 2>&1
+        $resStr = ($res | Out-String).Trim()
+        if ($resStr -notmatch 'OK') {
+            Write-Host "    WARNING: SET-CONFIG-EPOCH $epoch on $($Endpoints[$i]) returned: $resStr" -ForegroundColor Yellow
+        }
+    }
+
+    # 3) Gossip: MEET every other node from the first node
+    $first = $Endpoints[0] -split ':'
+    Write-Host "  Sending CLUSTER MEET from $($Endpoints[0]) to $($totalNodes - 1) peer(s)..." -ForegroundColor Yellow
+    for ($i = 1; $i -lt $totalNodes; $i++) {
+        $n = $Endpoints[$i] -split ':'
+        bash -c "$Cli -h $($first[0]) -p $($first[1]) CLUSTER MEET $($n[0]) $($n[1])" 2>&1 | Out-Null
+    }
+    Start-Sleep -Seconds 2
+
+    # 4) Attach replicas to primaries (round-robin)
     if ($replicas.Count -gt 0) {
         $masterIds = @()
         foreach ($m in $masters) {
@@ -591,7 +612,32 @@ function New-ClusterManual {
         for ($i = 0; $i -lt $replicas.Count; $i++) {
             $r = $replicas[$i] -split ':'
             $mid = $masterIds[$i % $masterIds.Count]
-            bash -c "$Cli -h $($r[0]) -p $($r[1]) CLUSTER REPLICATE $mid" 2>&1 | Out-Null
+
+            # Wait until this replica has learned the master node via gossip;
+            # CLUSTER REPLICATE fails with "Unknown node" until it does.
+            $known = $false
+            for ($try = 0; $try -lt 15; $try++) {
+                $nodes = bash -c "$Cli -h $($r[0]) -p $($r[1]) CLUSTER NODES" 2>&1
+                if ($nodes -match [regex]::Escape($mid)) { $known = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $known) {
+                Write-Host "    WARNING: $($replicas[$i]) has not learned master $mid via gossip; trying REPLICATE anyway" -ForegroundColor Yellow
+            }
+
+            # Issue REPLICATE with retries and surface the result.
+            $ok = $false; $resStr = ""
+            for ($try = 0; $try -lt 10; $try++) {
+                $res = bash -c "$Cli -h $($r[0]) -p $($r[1]) CLUSTER REPLICATE $mid" 2>&1
+                $resStr = ($res | Out-String).Trim()
+                if ($resStr -match 'OK') { $ok = $true; break }
+                Start-Sleep -Seconds 1
+            }
+            if ($ok) {
+                Write-Host "    $($replicas[$i]) -> replicates $mid ✓" -ForegroundColor DarkGray
+            } else {
+                Write-Host "    ERROR: $($replicas[$i]) failed to replicate ${mid}: $resStr" -ForegroundColor Red
+            }
         }
     }
     Start-Sleep -Seconds 2
