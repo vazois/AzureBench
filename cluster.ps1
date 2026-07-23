@@ -25,6 +25,7 @@ param(
     [Alias('Config')][string]$Conf,
     [int]$ICount = 1,
     [int]$NodeCount = 0,
+    [int]$MaxScan = 0,
     [int]$Replicas = 0,
     [switch]$Clean,
     [switch]$NoCluster,
@@ -52,6 +53,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -Conf        Local config file path on THIS workstation; its content is shipped to the nodes (no git push needed)"
     Write-Host "  -ICount      Number of instances per VM (default: 1)"
     Write-Host "  -NodeCount   Use first N server VMs from discovery (default: 0 = all)"
+    Write-Host "  -MaxScan     Cap subnet-scan probes when Azure API discovery is unavailable (0 = unlimited)"
     Write-Host "  -Replicas    Number of replicas per primary (default: 0)"
     Write-Host "  -Clean       Remove cluster directory before starting"
     Write-Host "  -NoCluster   Disable cluster mode (skip setup step)"
@@ -172,6 +174,7 @@ switch ($Action) {
         # Step 1: Start instances
         $startCmd = "cluster-deploy.ps1 -Action start -System $System -ICount $ICount"
         if ($NodeCount -gt 0) { $startCmd += " -NodeCount $NodeCount" }
+        if ($MaxScan -gt 0) { $startCmd += " -MaxScan $MaxScan" }
         if ($Template) { $startCmd += " -Template $Template" }
         if ($Conf) { $startCmd += " -ConfContent $confContent -ConfName $confName" }
         if ($Clean) { $startCmd += " -Clean" }
@@ -182,6 +185,7 @@ switch ($Action) {
         if (-not $NoCluster) {
             $setupCmd = "cluster-deploy.ps1 -Action setup -System $System -ICount $ICount"
             if ($NodeCount -gt 0) { $setupCmd += " -NodeCount $NodeCount" }
+            if ($MaxScan -gt 0) { $setupCmd += " -MaxScan $MaxScan" }
             if ($Replicas -gt 0) { $setupCmd += " -Replicas $Replicas" }
             if ($CreateManual) { $setupCmd += " -CreateManual" }
             Invoke-Remote -Cmd $setupCmd -Label "setup"
@@ -191,6 +195,7 @@ switch ($Action) {
     "stop" {
         $stopCmd = "cluster-deploy.ps1 -Action stop -System $System -ICount $ICount"
         if ($NodeCount -gt 0) { $stopCmd += " -NodeCount $NodeCount" }
+        if ($MaxScan -gt 0) { $stopCmd += " -MaxScan $MaxScan" }
         Invoke-Remote -Cmd $stopCmd -Label "stop"
     }
 }

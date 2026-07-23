@@ -31,6 +31,7 @@ param(
     [switch]$CreateManual,
     [string]$User = "guser",
     [int]$Port = 7000,
+    [int]$MaxScan = 0,
     [int]$SshTimeout = 10,
     [int]$TcpTimeout = 60,
     [switch]$Help
@@ -61,6 +62,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -CreateManual   Form the cluster manually (MEET + ADDSLOTSRANGE + REPLICATE) instead of '--cluster create'"
     Write-Host "  -User           SSH user (default: guser)"
     Write-Host "  -Port           Base port (default: 7000)"
+    Write-Host "  -MaxScan        Cap subnet-scan probe attempts (0 = unlimited)"
     Write-Host "  -SshTimeout     SSH connection timeout in seconds (default: 10)"
     Write-Host "  -TcpTimeout     TCP endpoint wait timeout in seconds (default: 60)"
     Write-Host "  -Help           Show this help message"
@@ -218,7 +220,7 @@ function Get-IpFqdnMap {
 }
 
 function Find-Peers {
-    param([string]$OwnIp, [int]$Prefix, [string]$SshUser, [int]$Timeout)
+    param([string]$OwnIp, [int]$Prefix, [string]$SshUser, [int]$Timeout, [int]$MaxScan = 0)
 
     # Preferred path: enumerate real VMSS instance IPs via the Azure API (scales to
     # thousands; all returned NICs belong to this VMSS so no family filtering needed).
@@ -240,14 +242,22 @@ function Find-Peers {
     }
 
     $candidateIps = Get-SubnetIps -Ip $OwnIp -Prefix $Prefix
-    Write-Host "  Scanning $($candidateIps.Count) candidate IPs (100ms timeout)..." -ForegroundColor DarkGray
+    $scanNote = if ($MaxScan -gt 0) { " (scan cap: $MaxScan)" } else { "" }
+    Write-Host "  Scanning $($candidateIps.Count) candidate IPs (100ms timeout)$scanNote..." -ForegroundColor DarkGray
 
     # Always include self
     $peers = @($OwnIp)
     Write-Host "  $OwnIp : self ✓" -ForegroundColor DarkGray
 
+    $scanned = 0
     foreach ($ip in $candidateIps) {
         if ($ip -eq $OwnIp) { continue }  # already included
+
+        if ($MaxScan -gt 0 -and $scanned -ge $MaxScan) {
+            Write-Host "  Reached scan cap ($MaxScan probes); stopping scan." -ForegroundColor DarkYellow
+            break
+        }
+        $scanned++
         try {
             $tcp = [System.Net.Sockets.TcpClient]::new()
             $task = $tcp.ConnectAsync($ip, 22)
@@ -672,7 +682,7 @@ function Get-PeerCache {
 # --- Resolve Peers ---
 
 function Resolve-Peers {
-    param([int]$NodeCount, [string]$User, [int]$SshTimeout, [switch]$ForceDiscover)
+    param([int]$NodeCount, [string]$User, [int]$SshTimeout, [switch]$ForceDiscover, [int]$MaxScan = 0)
 
     # Try cache first (unless forced)
     $peers = $null
@@ -686,7 +696,7 @@ function Resolve-Peers {
     # Discovery mode if no cache
     if (-not $peers) {
         $eth1 = Get-OwnEth1Info
-        $peers = Find-Peers -OwnIp $eth1.Ip -Prefix $eth1.Prefix -SshUser $User -Timeout $SshTimeout
+        $peers = Find-Peers -OwnIp $eth1.Ip -Prefix $eth1.Prefix -SshUser $User -Timeout $SshTimeout -MaxScan $MaxScan
         Save-PeerCache -Ips $peers -OwnIp $eth1.Ip
         Test-VmssFamily -Ips $peers -SshUser $User -Timeout $SshTimeout
     }
@@ -710,7 +720,7 @@ Write-Host "==== cluster-deploy ($Action) ====" -ForegroundColor Cyan
 
 switch ($Action) {
     "discover" {
-        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -ForceDiscover
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -ForceDiscover -MaxScan $MaxScan
         $ips = $peerInfo.Ips
 
         if ($ICount -gt 0) {
@@ -736,7 +746,7 @@ switch ($Action) {
         if ($Template -and ($Conf -or $ConfContent)) { throw "ERROR: -Template and -Conf/-ConfContent are mutually exclusive; specify only one." }
         if (-not $ICount) { throw "ERROR: -ICount is required for start." }
 
-        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -MaxScan $MaxScan
         $ips = $peerInfo.Ips
         $ownIp = $peerInfo.OwnIp
 
@@ -771,7 +781,7 @@ switch ($Action) {
         if (-not $System) { throw "ERROR: -System is required for setup." }
         if (-not $ICount) { throw "ERROR: -ICount is required for setup." }
 
-        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -MaxScan $MaxScan
         $ips = $peerInfo.Ips
 
         # Build endpoint list
@@ -815,7 +825,7 @@ switch ($Action) {
     "stop" {
         if (-not $System) { throw "ERROR: -System is required for stop." }
 
-        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout
+        $peerInfo = Resolve-Peers -NodeCount $NodeCount -User $User -SshTimeout $SshTimeout -MaxScan $MaxScan
         $ips = $peerInfo.Ips
         $ownIp = $peerInfo.OwnIp
 
