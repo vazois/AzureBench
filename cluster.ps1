@@ -28,6 +28,7 @@ param(
     [int]$Replicas = 0,
     [switch]$Clean,
     [switch]$NoCluster,
+    [switch]$CreateManual,
     [string]$ConfigFile = "$PSScriptRoot\benchmark\bench.conf",
     [string]$ServerHost,
     [string]$SshUser,
@@ -54,6 +55,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -Replicas    Number of replicas per primary (default: 0)"
     Write-Host "  -Clean       Remove cluster directory before starting"
     Write-Host "  -NoCluster   Disable cluster mode (skip setup step)"
+    Write-Host "  -CreateManual Form the cluster manually (MEET + ADDSLOTSRANGE + REPLICATE) instead of '--cluster create'"
     Write-Host "  -ConfigFile  Path to bench.conf for SSH host/key resolution (default: bench.conf)"
     Write-Host "  -ServerHost  Override server SSH host (default: from bench.conf Host field)"
     Write-Host "  -SshUser     Override SSH user (default: from bench.conf or guser)"
@@ -161,6 +163,7 @@ if ($NodeCount -gt 0) { Write-Host "  NodeCount: $NodeCount" }
 if ($Replicas -gt 0) { Write-Host "  Replicas:  $Replicas" }
 if ($Clean)     { Write-Host "  Clean:     True" }
 if ($NoCluster) { Write-Host "  NoCluster: True" }
+if ($CreateManual) { Write-Host "  CreateManual: True" }
 Write-Host ""
 
 # --- Execute ---
@@ -180,6 +183,7 @@ switch ($Action) {
             $setupCmd = "cluster-deploy.ps1 -Action setup -System $System -ICount $ICount"
             if ($NodeCount -gt 0) { $setupCmd += " -NodeCount $NodeCount" }
             if ($Replicas -gt 0) { $setupCmd += " -Replicas $Replicas" }
+            if ($CreateManual) { $setupCmd += " -CreateManual" }
             Invoke-Remote -Cmd $setupCmd -Label "setup"
         }
     }

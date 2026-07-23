@@ -28,6 +28,7 @@ param(
     [switch]$Clean,
     [int]$Replicas = 0,
     [switch]$NoCluster,
+    [switch]$CreateManual,
     [string]$User = "guser",
     [int]$Port = 7000,
     [int]$SshTimeout = 10,
@@ -57,6 +58,7 @@ if ($Help -or -not $Action) {
     Write-Host "  -Clean          Clean cluster directories before starting"
     Write-Host "  -Replicas       Number of replicas per primary (default: 0)"
     Write-Host "  -NoCluster      Disable cluster mode in configs"
+    Write-Host "  -CreateManual   Form the cluster manually (MEET + ADDSLOTSRANGE + REPLICATE) instead of '--cluster create'"
     Write-Host "  -User           SSH user (default: guser)"
     Write-Host "  -Port           Base port (default: 7000)"
     Write-Host "  -SshTimeout     SSH connection timeout in seconds (default: 10)"
@@ -537,22 +539,71 @@ function Wait-ForEndpoints {
     Write-Host "  All $($Endpoints.Count) endpoints responding." -ForegroundColor Green
 }
 
-function New-Cluster {
-    param([string[]]$Endpoints, [int]$ReplicaCount, [string]$Sys)
-    Write-Host ""
-    Write-Host "Forming cluster ($($Endpoints.Count) nodes, $ReplicaCount replica(s) per primary)..." -ForegroundColor Yellow
+function New-ClusterManual {
+    param([string[]]$Endpoints, [int]$ReplicaCount, [string]$Cli)
 
-    $endpointStr = $Endpoints -join " "
+    $totalNodes = $Endpoints.Count
+    $mastersCount = [math]::Floor($totalNodes / ($ReplicaCount + 1))
+    if ($mastersCount -lt 1) { $mastersCount = 1 }
+    $masters  = @($Endpoints[0..($mastersCount - 1)])
+    $replicas = if ($totalNodes -gt $mastersCount) { @($Endpoints[$mastersCount..($totalNodes - 1)]) } else { @() }
 
-    if ($Sys -eq "valkey") {
-        $cmd = "valkey-cli --cluster create $endpointStr --cluster-replicas $ReplicaCount --cluster-yes"
-    } else {
-        $cmd = "redis-cli --cluster create $endpointStr --cluster-replicas $ReplicaCount --cluster-yes"
+    Write-Host "  Primaries: $($masters -join ', ')" -ForegroundColor DarkGray
+    if ($replicas.Count -gt 0) { Write-Host "  Replicas:  $($replicas -join ', ')" -ForegroundColor DarkGray }
+
+    # 1) Gossip: MEET every other node from the first node
+    $first = $Endpoints[0] -split ':'
+    Write-Host "  Sending CLUSTER MEET from $($Endpoints[0]) to $($totalNodes - 1) peer(s)..." -ForegroundColor Yellow
+    for ($i = 1; $i -lt $totalNodes; $i++) {
+        $n = $Endpoints[$i] -split ':'
+        bash -c "$Cli -h $($first[0]) -p $($first[1]) CLUSTER MEET $($n[0]) $($n[1])" 2>&1 | Out-Null
+    }
+    Start-Sleep -Seconds 2
+
+    # 2) Assign slots across primaries (contiguous ranges)
+    Write-Host "  Assigning 16384 slots across $($masters.Count) primary(ies)..." -ForegroundColor Yellow
+    for ($i = 0; $i -lt $masters.Count; $i++) {
+        $m = $masters[$i] -split ':'
+        $slotStart = [math]::Floor(16384 * $i / $masters.Count)
+        $slotEnd   = [math]::Floor(16384 * ($i + 1) / $masters.Count) - 1
+        bash -c "$Cli -h $($m[0]) -p $($m[1]) CLUSTER ADDSLOTSRANGE $slotStart $slotEnd" 2>&1 | Out-Null
     }
 
-    Write-Host "  -> $cmd" -ForegroundColor DarkGray
-    $output = bash -c $cmd 2>&1
-    $output | ForEach-Object { Write-Host "  $_" }
+    # 3) Attach replicas to primaries (round-robin)
+    if ($replicas.Count -gt 0) {
+        $masterIds = @()
+        foreach ($m in $masters) {
+            $hp = $m -split ':'
+            $id = (bash -c "$Cli -h $($hp[0]) -p $($hp[1]) CLUSTER MYID" 2>&1 | Select-Object -First 1).Trim()
+            $masterIds += $id
+        }
+        Write-Host "  Attaching $($replicas.Count) replica(s) to primaries..." -ForegroundColor Yellow
+        for ($i = 0; $i -lt $replicas.Count; $i++) {
+            $r = $replicas[$i] -split ':'
+            $mid = $masterIds[$i % $masterIds.Count]
+            bash -c "$Cli -h $($r[0]) -p $($r[1]) CLUSTER REPLICATE $mid" 2>&1 | Out-Null
+        }
+    }
+    Start-Sleep -Seconds 2
+}
+
+function New-Cluster {
+    param([string[]]$Endpoints, [int]$ReplicaCount, [string]$Sys, [switch]$Manual)
+    Write-Host ""
+    $mode = if ($Manual) { "MANUAL" } else { "auto" }
+    Write-Host "Forming cluster [$mode] ($($Endpoints.Count) nodes, $ReplicaCount replica(s) per primary)..." -ForegroundColor Yellow
+
+    $cli = if ($Sys -eq "valkey") { "valkey-cli" } else { "redis-cli" }
+
+    if ($Manual) {
+        New-ClusterManual -Endpoints $Endpoints -ReplicaCount $ReplicaCount -Cli $cli
+    } else {
+        $endpointStr = $Endpoints -join " "
+        $cmd = "$cli --cluster create $endpointStr --cluster-replicas $ReplicaCount --cluster-yes"
+        Write-Host "  -> $cmd" -ForegroundColor DarkGray
+        $output = bash -c $cmd 2>&1
+        $output | ForEach-Object { Write-Host "  $_" }
+    }
 
     # Verify cluster state
     $firstEp = $Endpoints[0] -split ':'
@@ -757,7 +808,7 @@ switch ($Action) {
             Write-Host ""
             Write-Host "NOTE: -NoCluster specified, skipping cluster formation." -ForegroundColor Yellow
         } else {
-            New-Cluster -Endpoints $endpoints -ReplicaCount $Replicas -Sys $System
+            New-Cluster -Endpoints $endpoints -ReplicaCount $Replicas -Sys $System -Manual:$CreateManual
         }
     }
 
