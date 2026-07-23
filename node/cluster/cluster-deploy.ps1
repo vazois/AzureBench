@@ -556,7 +556,7 @@ function New-ClusterManual {
     $mastersCount = [math]::Floor($totalNodes / ($ReplicaCount + 1))
     if ($mastersCount -lt 1) { $mastersCount = 1 }
     $masters  = @($Endpoints[0..($mastersCount - 1)])
-    $replicas = if ($totalNodes -gt $mastersCount) { @($Endpoints[$mastersCount..($totalNodes - 1)]) } else { @() }
+    $replicas = @(if ($totalNodes -gt $mastersCount) { $Endpoints[$mastersCount..($totalNodes - 1)] })
 
     Write-Host "  Primaries: $($masters -join ', ')" -ForegroundColor DarkGray
     if ($replicas.Count -gt 0) { Write-Host "  Replicas:  $($replicas -join ', ')" -ForegroundColor DarkGray }
