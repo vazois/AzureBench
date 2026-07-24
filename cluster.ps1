@@ -13,9 +13,10 @@
     .\cluster.ps1 -Action start -System valkey -Template cache -ICount 2 -Clean
     .\cluster.ps1 -Action start -System garnet -Template cache-replication -ICount 1 -NoCluster
     .\cluster.ps1 -Action stop -System valkey -ICount 2
+    .\cluster.ps1 -Action restart -System garnet -Conf .\node\system\garnet-aofx8.conf -ICount 1 -Replicas 1 -CreateManual
 #>
 param(
-    [ValidateSet("start","stop")]
+    [ValidateSet("start","stop","restart")]
     [string]$Action,
 
     [ValidateSet("valkey","garnet")]
@@ -38,7 +39,7 @@ param(
 )
 
 if ($Help -or -not $Action) {
-    Write-Host "Usage: cluster.ps1 -Action <start|stop> -System <valkey|garnet> [options]"
+    Write-Host "Usage: cluster.ps1 -Action <start|stop|restart> -System <valkey|garnet> [options]"
     Write-Host ""
     Write-Host "Controls cluster lifecycle on remote VMSS server instances via SSH."
     Write-Host "SSHs into the server VM and runs cluster-deploy.ps1 to orchestrate."
@@ -46,6 +47,7 @@ if ($Help -or -not $Action) {
     Write-Host "Actions:"
     Write-Host "  start    Start instances + form cluster (start then setup)"
     Write-Host "  stop     Stop cluster instances on all server VMs"
+    Write-Host "  restart  Stop instances, then start + form cluster (stop then start)"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -System      Target system: valkey or garnet (required)"
@@ -69,8 +71,8 @@ $ErrorActionPreference = "Stop"
 
 # --- Validate params ---
 if (-not $System) { Write-Error "-System is required"; exit 1 }
-if ($Action -eq "start" -and -not $Template -and -not $Conf) {
-    Write-Error "-Template or -Conf is required for 'start'"; exit 1
+if (($Action -eq "start" -or $Action -eq "restart") -and -not $Template -and -not $Conf) {
+    Write-Error "-Template or -Conf is required for '$Action'"; exit 1
 }
 if ($Template -and $Conf) {
     Write-Error "-Template and -Conf are mutually exclusive; specify only one"; exit 1
@@ -169,35 +171,39 @@ if ($CreateManual) { Write-Host "  CreateManual: True" }
 Write-Host ""
 
 # --- Execute ---
+$doStart = {
+    # Step 1: Start instances
+    $startCmd = "cluster-deploy.ps1 -Action start -System $System -ICount $ICount"
+    if ($NodeCount -gt 0) { $startCmd += " -NodeCount $NodeCount" }
+    if ($MaxScan -gt 0) { $startCmd += " -MaxScan $MaxScan" }
+    if ($Template) { $startCmd += " -Template $Template" }
+    if ($Conf) { $startCmd += " -ConfContent $confContent -ConfName $confName" }
+    if ($Clean) { $startCmd += " -Clean" }
+    if ($NoCluster) { $startCmd += " -NoCluster" }
+    Invoke-Remote -Cmd $startCmd -Label "start"
+
+    # Step 2: Form cluster (skip if NoCluster)
+    if (-not $NoCluster) {
+        $setupCmd = "cluster-deploy.ps1 -Action setup -System $System -ICount $ICount"
+        if ($NodeCount -gt 0) { $setupCmd += " -NodeCount $NodeCount" }
+        if ($MaxScan -gt 0) { $setupCmd += " -MaxScan $MaxScan" }
+        if ($Replicas -gt 0) { $setupCmd += " -Replicas $Replicas" }
+        if ($CreateManual) { $setupCmd += " -CreateManual" }
+        Invoke-Remote -Cmd $setupCmd -Label "setup"
+    }
+}
+
+$doStop = {
+    $stopCmd = "cluster-deploy.ps1 -Action stop -System $System -ICount $ICount"
+    if ($NodeCount -gt 0) { $stopCmd += " -NodeCount $NodeCount" }
+    if ($MaxScan -gt 0) { $stopCmd += " -MaxScan $MaxScan" }
+    Invoke-Remote -Cmd $stopCmd -Label "stop"
+}
+
 switch ($Action) {
-    "start" {
-        # Step 1: Start instances
-        $startCmd = "cluster-deploy.ps1 -Action start -System $System -ICount $ICount"
-        if ($NodeCount -gt 0) { $startCmd += " -NodeCount $NodeCount" }
-        if ($MaxScan -gt 0) { $startCmd += " -MaxScan $MaxScan" }
-        if ($Template) { $startCmd += " -Template $Template" }
-        if ($Conf) { $startCmd += " -ConfContent $confContent -ConfName $confName" }
-        if ($Clean) { $startCmd += " -Clean" }
-        if ($NoCluster) { $startCmd += " -NoCluster" }
-        Invoke-Remote -Cmd $startCmd -Label "start"
-
-        # Step 2: Form cluster (skip if NoCluster)
-        if (-not $NoCluster) {
-            $setupCmd = "cluster-deploy.ps1 -Action setup -System $System -ICount $ICount"
-            if ($NodeCount -gt 0) { $setupCmd += " -NodeCount $NodeCount" }
-            if ($MaxScan -gt 0) { $setupCmd += " -MaxScan $MaxScan" }
-            if ($Replicas -gt 0) { $setupCmd += " -Replicas $Replicas" }
-            if ($CreateManual) { $setupCmd += " -CreateManual" }
-            Invoke-Remote -Cmd $setupCmd -Label "setup"
-        }
-    }
-
-    "stop" {
-        $stopCmd = "cluster-deploy.ps1 -Action stop -System $System -ICount $ICount"
-        if ($NodeCount -gt 0) { $stopCmd += " -NodeCount $NodeCount" }
-        if ($MaxScan -gt 0) { $stopCmd += " -MaxScan $MaxScan" }
-        Invoke-Remote -Cmd $stopCmd -Label "stop"
-    }
+    "start"   { & $doStart }
+    "stop"    { & $doStop }
+    "restart" { & $doStop; & $doStart }
 }
 
 Write-Host "==== cluster ($Action) complete ====" -ForegroundColor Green

@@ -35,6 +35,9 @@
 .PARAMETER SshUser
     SSH username (default: guser)
 
+.PARAMETER NoPull
+    Skip the git pull step on rebuild and build only the current local changes.
+
 .EXAMPLE
     # List VMSS and prompt for selection, then refresh all repos
     .\manage-vmss.ps1 -rg vazois-garnet
@@ -75,6 +78,8 @@ param(
 
     [switch]$Force,
 
+    [switch]$NoPull,
+
     [switch]$Help
 )
 
@@ -106,6 +111,7 @@ if ($Help -or -not $rg) {
     Write-Host "  -SshUser <user>     SSH username (default: guser)"
     Write-Host "  -Verbose            Show per-instance command output"
     Write-Host "  -Force              Force pull (git reset --hard) instead of fast-forward"
+    Write-Host "  -NoPull             Skip git pull on rebuild (build local changes only)"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -724,12 +730,16 @@ function Get-SshCommand {
                 $buildBranch = $branchField
             }
 
-            # Append branch to build args
-            if ($buildArgs -match '^\s*\S+\s*$') {
+            # Append branch to build args (skipped for -NoPull so build.sh does not
+            # fetch/checkout/reset --hard, which would discard local changes)
+            if (-not $NoPull -and $buildArgs -match '^\s*\S+\s*$') {
                 $buildArgs = "$($buildArgs.Trim()) $buildBranch"
             }
 
             $repoPath = $repoEntry.path
+            if ($NoPull) {
+                return "cd $repoPath && echo '[build (no pull)]' && sudo /opt/deploy-actions/build.sh $buildArgs"
+            }
             $pull = Get-GitPull -branch $buildBranch
             $dnsWarmup = "nslookup github.com >/dev/null 2>&1 || sleep 3"
             return "$dnsWarmup; cd $repoPath && echo '[git pull]' && $pull && echo '[build]' && sudo /opt/deploy-actions/build.sh $buildArgs"
